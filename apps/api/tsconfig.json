@@ -14,6 +14,11 @@
     "sourceMap": true,
     "outDir": "./dist",
     "baseUrl": "./",
+    "paths": {
+      "@/*": ["src/*"],
+      "@generated/prisma": ["generated/prisma/client"],
+      "@generated/prisma/*": ["generated/prisma/*"]
+    },
     "incremental": true,
     "skipLibCheck": true,
     "strictNullChecks": true,
@@ -21,5 +26,6 @@
     "noImplicitAny": false,
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false
-  }
+  },
+  "include": ["src/**/*", "generated/**/*", "test/**/*", "prisma.config.ts"]
 }
