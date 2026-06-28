@@ -1,6 +1,6 @@
-# Rivet — Architecture
+# Rivet - Architecture
 
-Architecture decisions for the Rivet codebase. Living document — update as implementation reveals new constraints.
+Architecture decisions for the Rivet codebase. Living document - update as implementation reveals new constraints.
 
 ---
 
@@ -8,7 +8,7 @@ Architecture decisions for the Rivet codebase. Living document — update as imp
 
 - **API:** NestJS, Prisma, PostgreSQL with Row-Level Security (RLS)
 - **Web:** Vite, React, TanStack Query
-- **Shared:** `@rivet/shared` — wire types, API envelope, Zod/constants (framework-agnostic)
+- **Shared:** `@rivet/shared` - wire types, API envelope, Zod/constants (framework-agnostic)
 - **Jobs:** BullMQ + Redis
 - **Billing:** Stripe (test mode in development)
 - **Observability:** structured logs, Prometheus/Grafana, OpenTelemetry traces, alerts
@@ -24,8 +24,8 @@ pnpm workspaces (not Nest's built-in monorepo mode):
 ```
 rivet/
 ├── apps/
-│   ├── api/              @rivet/api — NestJS
-│   └── web/              @rivet/web — Vite + React
+│   ├── api/              @rivet/api - NestJS
+│   └── web/              @rivet/web - Vite + React
 ├── packages/
 │   └── shared/           @rivet/shared
 ├── docker-compose.yml
@@ -54,13 +54,13 @@ modules/<name>/        Domain services + private repositories (one domain each)
 PostgreSQL (RLS)
 ```
 
-`api/` is organized by **feature** (`auth`, `org`, `projects`, `issues`, `billing`, `webhooks`), not by actor type — org members differ by **role**, not by separate app surfaces.
+`api/` is organized by **feature** (`auth`, `org`, `projects`, `issues`, `billing`, `webhooks`), not by actor type - org members differ by **role**, not by separate app surfaces.
 
 ### Module rules
 
 - **`modules/**` never imports another module.** Cross-domain work goes in `api/` or `use-cases/`.
-- **Repositories are private** to their module's service — not exported from the Nest module.
-- **`org_id` is mandatory** on every tenant-scoped service/repository method — defense in depth alongside RLS.
+- **Repositories are private** to their module's service - not exported from the Nest module.
+- **`org_id` is mandatory** on every tenant-scoped service/repository method - defense in depth alongside RLS.
 
 | Logic                         | Lives in                   |
 | ----------------------------- | -------------------------- |
@@ -68,7 +68,7 @@ PostgreSQL (RLS)
 | Multi-domain, one HTTP entry  | `api/<feature>/services/`  |
 | Multi-domain, 2+ entry points | `use-cases/<name>/`        |
 
-Promote logic into `use-cases/` only when a **second real call site** needs the same flow — never preemptively.
+Promote logic into `use-cases/` only when a **second real call site** needs the same flow - never preemptively.
 
 ---
 
@@ -77,7 +77,7 @@ Promote logic into `use-cases/` only when a **second real call site** needs the 
 Two layers:
 
 1. **Application:** JWT carries `activeOrgId`; guard validates membership; every query helper requires `org_id`.
-2. **Database:** RLS on tenant tables — `org_id = current_setting('app.current_org')`.
+2. **Database:** RLS on tenant tables - `org_id = current_setting('app.current_org')`.
 
 Every tenant-scoped DB operation runs through **`TenantPrismaService.run(orgId, fn)`**:
 
@@ -86,7 +86,7 @@ Every tenant-scoped DB operation runs through **`TenantPrismaService.run(orgId, 
 3. Run callback with transaction client `tx`.
 4. Commit.
 
-HTTP handlers, Stripe webhooks, and BullMQ workers use the same runner. **Bootstrap paths** (org creation before tenant context exists) use a separate explicit method — narrow and rare.
+HTTP handlers, Stripe webhooks, and BullMQ workers use the same runner. **Bootstrap paths** (org creation before tenant context exists) use a separate explicit method - narrow and rare.
 
 An automated **cross-tenant isolation test** verifies org A's session cannot read org B's data, even when a query deliberately omits `org_id`.
 
@@ -128,10 +128,10 @@ Single `DomainError` class with `kind` (`NOT_FOUND` | `RULE_VIOLATION` | `CONFLI
 
 | Shape                          | Location                                                                          |
 | ------------------------------ | --------------------------------------------------------------------------------- |
-| **Wire type** (`IssueWire`, …) | `@rivet/shared` — JSON inside `data`                                              |
-| **Entity**                     | `api/<feature>/entities/` — `implements IssueWire` + `@ApiProperty()` for Swagger |
-| **DTO**                        | `api/<feature>/dto/` — `class-validator` on input                                 |
-| **Domain type**                | `modules/<name>/types/` — internal only                                           |
+| **Wire type** (`IssueWire`, …) | `@rivet/shared` - JSON inside `data`                                              |
+| **Entity**                     | `api/<feature>/entities/` - `implements IssueWire` + `@ApiProperty()` for Swagger |
+| **DTO**                        | `api/<feature>/dto/` - `class-validator` on input                                 |
+| **Domain type**                | `modules/<name>/types/` - internal only                                           |
 
 Web imports wire types from shared; UI-only view models stay in `apps/web`.
 
@@ -156,13 +156,13 @@ Every response uses the same top-level shape:
 
 ## Concurrency
 
-Field-level updates by default. **Optimistic locking on `issues.status` only** via a `status_version` column — prevents silent status overwrites without blocking unrelated field edits. Conflicts return `409` / `ISSUE_STATUS_CONFLICT`.
+Field-level updates by default. **Optimistic locking on `issues.status` only** via a `status_version` column - prevents silent status overwrites without blocking unrelated field edits. Conflicts return `409` / `ISSUE_STATUS_CONFLICT`.
 
 ---
 
 ## Cross-module reads
 
-Compose in `api/` or `use-cases/` — batch-fetch related entities and map, rather than cross-schema Prisma `include` across modules. Comments live inside the **issues** module (never queried independently of an issue).
+Compose in `api/` or `use-cases/` - batch-fetch related entities and map, rather than cross-schema Prisma `include` across modules. Comments live inside the **issues** module (never queried independently of an issue).
 
 ---
 

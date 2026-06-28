@@ -2,19 +2,19 @@
 
 Multi-tenant issue tracking for teams that ship.
 
-A lightweight issue tracker with organizations, role-based access, Stripe billing, async exports, and production-minded engineering — tenant isolation, observability, and documented trade-offs.
+A lightweight issue tracker with organizations, role-based access, Stripe billing, async exports, and production-minded engineering - tenant isolation, observability, and documented trade-offs.
 
 **Live demo:** _(add URL when deployed)_
 
 ## Features
 
-- **Organizations** — create an org (become owner), invite teammates with expiring single-use tokens
-- **Multi-org membership** — one user, many orgs; switch active org per session
-- **Projects & issues** — track work with status, priority, assignees, and comments
-- **RBAC** — Owner, Admin, Member, Viewer
-- **Billing** — Free / Pro / Team tiers via Stripe (test mode in dev)
-- **Async CSV export** — background job with retries; no blocking downloads
-- **Observability** — structured logs, metrics, traces, and alerts on the API
+- **Organizations** - create an org (become owner), invite teammates with expiring single-use tokens
+- **Multi-org membership** - one user, many orgs; switch active org per session
+- **Projects & issues** - track work with status, priority, assignees, and comments
+- **RBAC** - Owner, Admin, Member, Viewer
+- **Billing** - Free / Pro / Team tiers via Stripe (test mode in dev)
+- **Async CSV export** - background job with retries; no blocking downloads
+- **Observability** - structured logs, metrics, traces, and alerts on the API
 
 ## v1 boundaries
 
@@ -29,10 +29,10 @@ See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for layering, RLS, auth, and 
 ```
 rivet/
 ├── apps/
-│   ├── api/             @rivet/api — NestJS
-│   └── web/             @rivet/web — Vite + React
+│   ├── api/             @rivet/api - NestJS
+│   └── web/             @rivet/web - Vite + React
 ├── packages/
-│   └── shared/          @rivet/shared — wire types, envelope, shared constants
+│   └── shared/          @rivet/shared - wire types, envelope, shared constants
 ├── docker-compose.yml   Postgres + Redis
 └── docs/
 ```
