@@ -1,10 +1,63 @@
+# Dependencies
 node_modules
+
+# Build outputs
 dist
 build
-.env
-.env.local
-*.log
-.DS_Store
 coverage
 .turbo
 .vite
+
+# Environment
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# API config/envs — ignore secrets, keep *.ts and *.example
+apps/api/src/config/envs/.env*
+apps/api/src/config/envs/*.local
+!apps/api/src/config/envs/.env.example
+!apps/api/src/config/envs/*.example
+
+# Logs
+*.log
+logs
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# OS
+.DS_Store
+
+# Tests
+.nyc_output
+
+# IDEs and editors
+.idea
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Temp
+.temp
+.tmp
+
+# Runtime
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Node diagnostics
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
