@@ -1,0 +1,2 @@
+echo "Running pnpm install after merge..."
+pnpm install

@@ -1,0 +1,17 @@
+echo "🏗️👷‍♂️ Formatting code with Prettier..."
+pnpm format
+
+echo "🔧👷‍♂️ Auto-fixing ESLint issues..."
+pnpm lint:fix
+
+echo "📦 Staging formatted files..."
+git add -A
+
+echo "🔍👷‍♂️ Running ESLint..."
+pnpm lint
+
+echo "🔍👷‍♂️ Running type checks..."
+pnpm typecheck
+
+# If everything passes... Now we can commit
+echo "✅✅✅✅ Committing this now. ✅✅✅✅"

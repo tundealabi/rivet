@@ -1,0 +1,37 @@
+{
+  "name": "rivet",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Multi-tenant issue tracker SaaS",
+  "scripts": {
+    "build": "pnpm --filter @rivet/shared build && pnpm -r --filter '!@rivet/shared' build",
+    "dev": "pnpm --filter @rivet/shared build && pnpm -r --parallel dev",
+    "dev:api": "pnpm --filter @rivet/api dev",
+    "dev:web": "pnpm --filter @rivet/web dev",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "pnpm -r typecheck",
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "prepare": "husky"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@10.12.1",
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "eslint": "^9.39.4",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.6",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.3",
+    "eslint-plugin-simple-import-sort": "^13.0.0",
+    "globals": "^17.7.0",
+    "husky": "^9.1.7",
+    "prettier": "^3.8.4",
+    "typescript-eslint": "^8.62.0"
+  }
+}
