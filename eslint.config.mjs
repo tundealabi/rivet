@@ -17,6 +17,7 @@ export default tseslint.config(
   {
     ignores: [
       "eslint.config.mjs",
+      "eslint.config.js",
       "**/dist/**",
       "**/node_modules/**",
       "**/generated/**",
@@ -97,6 +98,9 @@ export default tseslint.config(
       globals: {
         ...globals.jest,
       },
+    },
+    rules: {
+      "@typescript-eslint/no-unsafe-member-access": "off",
     },
   }
 );

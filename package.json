@@ -6,7 +6,7 @@
   "scripts": {
     "build": "pnpm --filter @rivet/shared build && pnpm -r --filter '!@rivet/shared' build",
     "dev": "pnpm --filter @rivet/shared build && pnpm -r --parallel dev",
-    "dev:api": "pnpm --filter @rivet/api dev",
+    "dev:api": "pnpm --filter @rivet/api start:dev",
     "dev:web": "pnpm --filter @rivet/web dev",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
