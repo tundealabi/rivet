@@ -1,4 +1,18 @@
 export {
+  LoginAuthRequestSchema,
+  type LoginAuthRequestWire,
+  RegisterAuthRequestSchema,
+  type RegisterAuthRequestWire,
+  SignInAuthResponseSchema,
+  type SignInAuthResponseWire,
+  SignInAuthTokensResponseSchema,
+  type SignInAuthTokensWire,
+  SignInOrgResponseSchema,
+  type SignInOrgWire,
+  SignInUserResponseSchema,
+  type SignInUserWire,
+} from "./auth/index.js";
+export {
   isApiErrorResponseWire,
   isApiGeneralErrorResponseWire,
   isApiGeneralErrorWire,
@@ -21,3 +35,7 @@ export type {
   ApiValidationErrorResponseWire,
   ApiValidationErrorWire,
 } from "./envelope.wire.js";
+export {
+  flattenZodErrorToFields,
+  flattenZodIssuesToFields,
+} from "./validation.js";

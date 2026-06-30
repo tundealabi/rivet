@@ -7,6 +7,7 @@ export enum ErrorCode {
   INVALID_CREDENTIALS = "INVALID_CREDENTIALS",
   ISSUE_STATUS_CONFLICT = "ISSUE_STATUS_CONFLICT",
   NOT_FOUND = "NOT_FOUND",
+  ORG_MEMBER_ALREADY_EXISTS = "ORG_MEMBER_ALREADY_EXISTS",
   VALIDATION_ERROR = "VALIDATION_ERROR",
 }
 
@@ -18,5 +19,6 @@ export enum ErrorMessage {
   INVALID_CREDENTIALS = "Invalid credentials",
   ISSUE_STATUS_CONFLICT = "Resource changed since you last viewed it",
   NOT_FOUND = "Not found",
+  ORG_MEMBER_ALREADY_EXISTS = "An organization member with this user and organization already exists",
   VALIDATION_ERROR = "Validation errors in your request",
 }

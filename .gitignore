@@ -64,4 +64,5 @@ pids
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 # Prisma generated client
-apps/api/generated/prisma
+apps/api/generated/
+apps/api/src/generated/

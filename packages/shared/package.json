@@ -17,6 +17,10 @@
     "./enums": {
       "types": "./dist/enums/index.d.ts",
       "default": "./dist/enums/index.js"
+    },
+    "./constants": {
+      "types": "./dist/constants.d.ts",
+      "default": "./dist/constants.js"
     }
   },
   "scripts": {

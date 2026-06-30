@@ -93,7 +93,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ["**/*.{test,spec}.{ts,tsx}"],
+    files: ["**/*.{test,spec,e2e-spec}.{ts,tsx}"],
     languageOptions: {
       globals: {
         ...globals.jest,

@@ -12,6 +12,8 @@ export const ENV_KEYS = {
   AUTH_GOOGLE_CLIENT_SECRET: "auth.google.clientSecret",
   AUTH_USER_ACCESS_TOKEN_EXPIRES_IN: "auth.user.accessToken.expiresIn",
   AUTH_USER_ACCESS_TOKEN_SECRET: "auth.user.accessToken.secret",
+  AUTH_USER_REFRESH_TOKEN_EXPIRES_IN: "auth.user.refreshToken.expiresIn",
+  AUTH_USER_REFRESH_TOKEN_SECRET: "auth.user.refreshToken.secret",
   CLIENT_WEB_BASE_URL: "client.web.baseUrl",
   DATABASE_URL: "db.url",
   NOTIFICATION_MAIL_FROM: "notification.mailFrom",

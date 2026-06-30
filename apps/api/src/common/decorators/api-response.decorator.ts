@@ -16,6 +16,7 @@ import {
   ApiUnauthorizedResponse,
   getSchemaPath,
 } from "@nestjs/swagger";
+import { type ZodDto, ZodSerializerDto } from "nestjs-zod";
 
 import {
   ApiGeneralErrorResponseEntity,
@@ -23,6 +24,11 @@ import {
   ApiSuccessResponseEntity,
   ApiValidationErrorResponseEntity,
 } from "@/common/entities";
+
+type ZodDtoClass = ZodDto & Type<unknown>;
+
+const isZodDtoClass = (model: Type<unknown>): model is ZodDtoClass =>
+  "isZodDto" in model && model.isZodDto === true;
 
 type SwaggerSchema = Record<string, unknown>;
 
@@ -142,6 +148,7 @@ const ERROR_STATUS_CONFIG: Record<
   [HttpStatus.TOO_MANY_REQUESTS]: {
     defaultDescription: "Rate limit exceeded. Please try again later",
     defaultMessage: "Too many requests",
+    defaultCode: "TOO_MANY_REQUESTS",
     decorator: ApiTooManyRequestsResponse,
   },
   [HttpStatus.INTERNAL_SERVER_ERROR]: {
@@ -201,6 +208,12 @@ export const ApiEnvelopeResponse = <TModel extends Type<unknown>>(
 
   if (model) {
     decorators.push(ApiExtraModels(model));
+
+    if (isZodDtoClass(model)) {
+      decorators.push(
+        isArray ? ZodSerializerDto([model]) : ZodSerializerDto(model)
+      );
+    }
   }
 
   decorators.push(

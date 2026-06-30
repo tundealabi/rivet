@@ -16,8 +16,8 @@
     "baseUrl": "./",
     "paths": {
       "@/*": ["src/*"],
-      "@generated/prisma": ["generated/prisma/client"],
-      "@generated/prisma/*": ["generated/prisma/*"]
+      "@generated/prisma": ["src/generated/prisma/client"],
+      "@generated/prisma/*": ["src/generated/prisma/*"]
     },
     "incremental": true,
     "skipLibCheck": true,
@@ -27,5 +27,5 @@
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false
   },
-  "include": ["src/**/*", "generated/**/*", "test/**/*", "prisma.config.ts"]
+  "include": ["src/**/*", "test/**/*", "prisma.config.ts"]
 }

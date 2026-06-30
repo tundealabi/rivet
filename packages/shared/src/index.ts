@@ -11,8 +11,16 @@ export type {
   ApiSuccessResponseWire,
   ApiValidationErrorResponseWire,
   ApiValidationErrorWire,
+  LoginAuthRequestWire,
+  RegisterAuthRequestWire,
+  SignInAuthResponseWire,
+  SignInAuthTokensWire,
+  SignInOrgWire,
+  SignInUserWire,
 } from "./api/index.js";
 export {
+  flattenZodErrorToFields,
+  flattenZodIssuesToFields,
   isApiErrorResponseWire,
   isApiGeneralErrorResponseWire,
   isApiGeneralErrorWire,
@@ -20,7 +28,14 @@ export {
   isApiSuccessResponseWire,
   isApiValidationErrorResponseWire,
   isApiValidationErrorWire,
+  LoginAuthRequestSchema,
+  RegisterAuthRequestSchema,
+  SignInAuthResponseSchema,
+  SignInAuthTokensResponseSchema,
+  SignInOrgResponseSchema,
+  SignInUserResponseSchema,
 } from "./api/index.js";
+export { REGEX_PASSWORD } from "./constants.js";
 export {
   ApiResponseState,
   ErrorCode,

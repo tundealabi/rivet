@@ -3,7 +3,7 @@
 
 generator client {
   provider = "prisma-client"
-  output   = "../generated/prisma"
+  output   = "../src/generated/prisma"
 }
 
 datasource db {
@@ -17,14 +17,23 @@ enum OrganizationRole {
   VIEWER
 }
 
+enum PlanTier {
+  FREE
+  PRO
+  TEAM
+}
+
 model User {
   id           String   @id @default(uuid()) @db.Uuid
   email        String   @unique
+  firstName    String   @map("first_name")
+  lastName     String   @map("last_name")
   passwordHash String   @map("password_hash")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  memberships OrganizationMember[]
+  memberships   OrganizationMember[]
+  refreshTokens RefreshToken[]
 
   @@map("users")
 }
@@ -32,6 +41,7 @@ model User {
 model Organization {
   id        String   @id @default(uuid()) @db.Uuid
   name      String
+  planTier  PlanTier @default(FREE) @map("plan_tier")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -52,4 +62,17 @@ model OrganizationMember {
 
   @@unique([organizationId, userId])
   @@map("organization_members")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  @@map("refresh_tokens")
 }

@@ -14,8 +14,8 @@
     "baseUrl": "./",
     "paths": {
       "@/*": ["src/*"],
-      "@generated/prisma": ["generated/prisma/client"],
-      "@generated/prisma/*": ["generated/prisma/*"]
+      "@generated/prisma": ["src/generated/prisma/client"],
+      "@generated/prisma/*": ["src/generated/prisma/*"]
     },
     "keepClassNames": true
   },

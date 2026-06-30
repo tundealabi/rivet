@@ -1,14 +1,23 @@
 {
   "moduleFileExtensions": ["js", "json", "ts"],
-  "rootDir": ".",
+  "rootDir": "..",
   "testEnvironment": "node",
-  "testRegex": ".e2e-spec.ts$",
+  "testRegex": "test/.*\\.e2e-spec\\.ts$",
   "moduleNameMapper": {
-    "^@/(.*)$": "<rootDir>/../src/$1",
-    "^@generated/prisma$": "<rootDir>/../generated/prisma/client",
-    "^@generated/prisma/(.*)$": "<rootDir>/../generated/prisma/$1"
+    "^(\\.{1,2}/.*)\\.js$": "$1",
+    "^@/(.*)$": "<rootDir>/src/$1",
+    "^@generated/prisma$": "<rootDir>/src/generated/prisma/client",
+    "^@generated/prisma/(.*)$": "<rootDir>/src/generated/prisma/$1",
+    "^@rivet/shared$": "<rootDir>/../../packages/shared/src/index.ts",
+    "^@rivet/shared/api$": "<rootDir>/../../packages/shared/src/api/index.ts",
+    "^@rivet/shared/enums$": "<rootDir>/../../packages/shared/src/enums/index.ts"
   },
   "transform": {
-    "^.+\\.(t|j)s$": "ts-jest"
+    "^.+\\.(t|j)s$": [
+      "ts-jest",
+      {
+        "tsconfig": "<rootDir>/test/tsconfig.e2e.json"
+      }
+    ]
   }
 }
