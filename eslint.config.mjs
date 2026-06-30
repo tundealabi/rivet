@@ -21,6 +21,8 @@ export default tseslint.config(
       "**/dist/**",
       "**/node_modules/**",
       "**/generated/**",
+      "**/load-tests/**",
+      "**/*.k6.js",
       "**/*.min.js",
       "pnpm-lock.yaml",
     ],

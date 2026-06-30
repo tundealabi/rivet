@@ -30,10 +30,13 @@ export class UserService {
           ErrorMessage.AUTH_EMAIL_ALREADY_EXISTS
         );
       }
-      const passwordHash = await this.hashService.hash(input.password);
+
+      const hashedPassword = await this.hashService.hash(input.hashedPassword);
       return this.userRepository.create({
-        ...input,
-        password: passwordHash,
+        email: input.email,
+        firstName: input.firstName,
+        hashedPassword,
+        lastName: input.lastName,
         ctx: { tx },
       });
     };
@@ -52,5 +55,8 @@ export class UserService {
       }
       throw err;
     }
+  }
+  async hashPassword(password: string): Promise<string> {
+    return this.hashService.hash(password);
   }
 }

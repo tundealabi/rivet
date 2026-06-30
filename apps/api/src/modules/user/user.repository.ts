@@ -23,7 +23,7 @@ export class UserRepository {
         email: input.email,
         firstName: input.firstName,
         lastName: input.lastName,
-        passwordHash: input.password,
+        passwordHash: input.hashedPassword,
       },
     });
   }

@@ -3,8 +3,8 @@ import { OperationContext } from "@/common/types";
 export interface CreateUserInput {
   email: string;
   firstName: string;
+  hashedPassword: string;
   lastName: string;
-  password: string;
   ctx?: OperationContext;
 }
 

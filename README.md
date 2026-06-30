@@ -53,7 +53,7 @@ pnpm docker:up
 # cp .env.example apps/api/.env
 
 pnpm dev          # build shared + run all apps
-pnpm dev:api      # http://localhost:3000
+pnpm dev:api      # http://localhost:8090
 pnpm dev:web      # http://localhost:5173
 ```
 

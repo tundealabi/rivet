@@ -24,13 +24,14 @@ export class AuthService {
   //   }
 
   async register(input: RegisterAuthInput) {
+    // const hashedPassword = await this.userService.hashPassword(input.password);
     const { user, org } = await this.databaseService.client.$transaction(
       async (tx) => {
         const user = await this.userService.create({
           email: input.email,
           firstName: input.firstName,
           lastName: input.lastName,
-          password: input.password,
+          hashedPassword: input.password,
           ctx: { tx },
         });
         const org = await this.orgService.create({
