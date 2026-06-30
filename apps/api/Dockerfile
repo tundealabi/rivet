@@ -9,6 +9,7 @@ COPY apps/api/package.json apps/api/
 RUN pnpm install --frozen-lockfile --ignore-scripts
 
 FROM deps AS build
+COPY tsconfig.base.json ./
 COPY packages/shared packages/shared
 COPY apps/api apps/api
 RUN pnpm --filter @rivet/shared build \
