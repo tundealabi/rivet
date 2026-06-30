@@ -5,8 +5,8 @@ import { BASE_URL, defaultHeaders } from "./config.js";
 export const options = {
   // Simulates 50 users hitting the endpoint continuously for 30 seconds
   stages: [
-    { duration: "10s", target: 3 }, // Ramp up to exactly 3 concurrent users
-    { duration: "30s", target: 3 }, // Sustained load of 3 users
+    { duration: "10s", target: 25 }, // Ramp up to 25 concurrent users (well past your pool limit of 10)
+    { duration: "30s", target: 25 }, // Hold at 25 users
     { duration: "10s", target: 0 }, // Ramp down
   ],
   thresholds: {

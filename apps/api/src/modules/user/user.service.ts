@@ -31,11 +31,11 @@ export class UserService {
         );
       }
 
-      const hashedPassword = await this.hashService.hash(input.hashedPassword);
+      // const hashedPassword = await this.hashService.hash(input.hashedPassword);
       return this.userRepository.create({
         email: input.email,
         firstName: input.firstName,
-        hashedPassword,
+        hashedPassword: input.hashedPassword,
         lastName: input.lastName,
         ctx: { tx },
       });
