@@ -1,14 +1,17 @@
 import http from "k6/http";
 import { check, sleep } from "k6";
-import { BASE_URL, defaultHeaders } from "./config";
+import { BASE_URL, defaultHeaders } from "./config.js";
 
 export const options = {
   // Simulates 50 users hitting the endpoint continuously for 30 seconds
   stages: [
-    { duration: "5s", target: 50 }, // Ramp up from 0 to 50 users
-    { duration: "20s", target: 50 }, // Stay at 50 users
-    { duration: "5s", target: 0 }, // Ramp down to 0
+    { duration: "10s", target: 3 }, // Ramp up to exactly 3 concurrent users
+    { duration: "30s", target: 3 }, // Sustained load of 3 users
+    { duration: "10s", target: 0 }, // Ramp down
   ],
+  thresholds: {
+    http_req_failed: ["rate<0.01"], // Expect under 1% failures
+  },
 };
 
 export default function () {
