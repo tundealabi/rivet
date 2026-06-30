@@ -1,5 +1,6 @@
 # Dependencies
 node_modules
+.pnpm-store
 
 # Build outputs
 dist
@@ -53,6 +54,7 @@ lerna-debug.log*
 # Temp
 .temp
 .tmp
+.deploy-test
 
 # Runtime
 pids
