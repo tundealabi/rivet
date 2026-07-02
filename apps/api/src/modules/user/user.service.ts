@@ -1,10 +1,10 @@
-import { Prisma, User } from "@generated/prisma";
+import { User } from "@generated/prisma";
 import { Injectable } from "@nestjs/common";
 import { ErrorCode, ErrorMessage } from "@rivet/shared/enums";
 
 import { DomainError } from "@/common/errors";
-import { HashService } from "@/common/services";
 import { DatabaseService } from "@/database/database.service";
+import { DbOptions } from "@/database/database.types";
 
 import { UserRepository } from "./user.repository";
 import { CreateUserInput } from "./user.types";
@@ -13,38 +13,13 @@ import { CreateUserInput } from "./user.types";
 export class UserService {
   constructor(
     private readonly databaseService: DatabaseService,
-    private readonly hashService: HashService,
+
     private readonly userRepository: UserRepository
   ) {}
 
-  async create(input: CreateUserInput): Promise<User> {
-    const runCreate = async (tx: Prisma.TransactionClient) => {
-      const existing = await this.userRepository.findByEmail({
-        email: input.email,
-        ctx: { tx },
-      });
-      if (existing) {
-        throw new DomainError(
-          "CONFLICT",
-          ErrorCode.AUTH_EMAIL_ALREADY_EXISTS,
-          ErrorMessage.AUTH_EMAIL_ALREADY_EXISTS
-        );
-      }
-
-      // const hashedPassword = await this.hashService.hash(input.hashedPassword);
-      return this.userRepository.create({
-        email: input.email,
-        firstName: input.firstName,
-        hashedPassword: input.hashedPassword,
-        lastName: input.lastName,
-        ctx: { tx },
-      });
-    };
+  async create(input: CreateUserInput, options?: DbOptions): Promise<User> {
     try {
-      if (input.ctx?.tx) {
-        return await runCreate(input.ctx.tx);
-      }
-      return await this.databaseService.client.$transaction(runCreate);
+      return await this.userRepository.create(input, options);
     } catch (err) {
       if (this.databaseService.isUniqueConstraintViolationError(err, "email")) {
         throw new DomainError(
@@ -56,7 +31,12 @@ export class UserService {
       throw err;
     }
   }
-  async hashPassword(password: string): Promise<string> {
-    return this.hashService.hash(password);
+
+  async findByEmail(email: string, options?: DbOptions) {
+    return this.userRepository.findByEmail(email, options);
+  }
+
+  async findById(id: string, options?: DbOptions) {
+    return this.userRepository.findById(id, options);
   }
 }

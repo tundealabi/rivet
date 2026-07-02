@@ -4,7 +4,8 @@ import { ConfigService } from "@nestjs/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 
 import { ENV_KEYS } from "@/common/constants";
-import { OperationContext } from "@/common/types";
+
+import { DbOptions } from "./database.types";
 
 @Injectable()
 export class DatabaseService implements OnModuleInit, OnModuleDestroy {
@@ -38,14 +39,31 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       return false;
     }
 
-    const target = error.meta?.target;
-    return Array.isArray(target) && target.includes(field);
+    const fields = this.getUniqueConstraintFields(error);
+    return fields.includes(field);
   }
 
-  resolveClient<TClient>(
-    context: OperationContext | undefined,
-    defaultClient: TClient
-  ): TClient | Prisma.TransactionClient {
-    return context?.tx ?? defaultClient;
+  resolveClient(options?: DbOptions): PrismaClient | Prisma.TransactionClient {
+    return options?.tx ?? this.client;
+  }
+
+  private getUniqueConstraintFields(
+    error: Prisma.PrismaClientKnownRequestError
+  ): string[] {
+    const meta = error.meta as
+      | {
+          driverAdapterError?: {
+            cause?: {
+              constraint?: {
+                fields?: string[];
+              };
+            };
+          };
+        }
+      | undefined;
+
+    const fields = meta?.driverAdapterError?.cause?.constraint?.fields;
+
+    return Array.isArray(fields) ? fields : [];
   }
 }

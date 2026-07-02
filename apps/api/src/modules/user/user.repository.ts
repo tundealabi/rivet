@@ -2,22 +2,16 @@ import { User } from "@generated/prisma";
 import { Injectable } from "@nestjs/common";
 
 import { DatabaseService } from "@/database/database.service";
+import { DbOptions } from "@/database/database.types";
 
-import {
-  CreateUserInput,
-  FindUserByEmailInput,
-  FindUserByIdInput,
-} from "./user.types";
+import { CreateUserInput } from "./user.types";
 
 @Injectable()
 export class UserRepository {
   constructor(private readonly databaseService: DatabaseService) {}
 
-  async create(input: CreateUserInput): Promise<User> {
-    const client = this.databaseService.resolveClient(
-      input.ctx,
-      this.databaseService.client
-    );
+  async create(input: CreateUserInput, options?: DbOptions): Promise<User> {
+    const client = this.databaseService.resolveClient(options);
     return client.user.create({
       data: {
         email: input.email,
@@ -27,22 +21,16 @@ export class UserRepository {
       },
     });
   }
-  async findByEmail(input: FindUserByEmailInput): Promise<User | null> {
-    const client = this.databaseService.resolveClient(
-      input.ctx,
-      this.databaseService.client
-    );
+  async findByEmail(email: string, options?: DbOptions): Promise<User | null> {
+    const client = this.databaseService.resolveClient(options);
     return client.user.findUnique({
-      where: { email: input.email },
+      where: { email },
     });
   }
-  async findById(input: FindUserByIdInput): Promise<User | null> {
-    const client = this.databaseService.resolveClient(
-      input.ctx,
-      this.databaseService.client
-    );
+  async findById(id: string, options?: DbOptions): Promise<User | null> {
+    const client = this.databaseService.resolveClient(options);
     return client.user.findUnique({
-      where: { id: input.id },
+      where: { id },
     });
   }
 }

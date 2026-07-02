@@ -14,6 +14,7 @@ import {
   ApiResponseOptions,
   ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
+  ApiUnprocessableEntityResponse,
   getSchemaPath,
 } from "@nestjs/swagger";
 import { type ZodDto, ZodSerializerDto } from "nestjs-zod";
@@ -144,6 +145,13 @@ const ERROR_STATUS_CONFIG: Record<
     defaultMessage: "Conflict",
     defaultCode: "CONFLICT",
     decorator: ApiConflictResponse,
+  },
+  [HttpStatus.UNPROCESSABLE_ENTITY]: {
+    defaultDescription:
+      "The request was well-formed but was rejected due to rule violations",
+    defaultMessage: "Rule violation",
+    defaultCode: "RULE_VIOLATION",
+    decorator: ApiUnprocessableEntityResponse,
   },
   [HttpStatus.TOO_MANY_REQUESTS]: {
     defaultDescription: "Rate limit exceeded. Please try again later",

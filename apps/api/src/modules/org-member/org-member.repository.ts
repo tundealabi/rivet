@@ -2,6 +2,7 @@ import { OrganizationMember } from "@generated/prisma";
 import { Injectable } from "@nestjs/common";
 
 import { DatabaseService } from "@/database/database.service";
+import { DbOptions } from "@/database/database.types";
 
 import {
   CreateOrgMemberInput,
@@ -12,11 +13,11 @@ import {
 export class OrgMemberRepository {
   constructor(private readonly databaseService: DatabaseService) {}
 
-  async create(input: CreateOrgMemberInput): Promise<OrganizationMember> {
-    const client = this.databaseService.resolveClient(
-      input.ctx,
-      this.databaseService.client
-    );
+  async create(
+    input: CreateOrgMemberInput,
+    options?: DbOptions
+  ): Promise<OrganizationMember> {
+    const client = this.databaseService.resolveClient(options);
     return client.organizationMember.create({
       data: {
         organizationId: input.orgId,
@@ -27,12 +28,10 @@ export class OrgMemberRepository {
   }
 
   async findByUserIdAndOrgId(
-    input: FindOrgMemberByUserIdAndOrgIdInput
+    input: FindOrgMemberByUserIdAndOrgIdInput,
+    options?: DbOptions
   ): Promise<OrganizationMember | null> {
-    const client = this.databaseService.resolveClient(
-      input.ctx,
-      this.databaseService.client
-    );
+    const client = this.databaseService.resolveClient(options);
     return client.organizationMember.findUnique({
       where: {
         organizationId_userId: {

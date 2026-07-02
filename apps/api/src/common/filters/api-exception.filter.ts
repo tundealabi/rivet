@@ -248,6 +248,8 @@ export class ApiExceptionFilter implements ExceptionFilter {
 
   private mapDomainErrorStatus(kind: DomainError["kind"]): HttpStatus {
     switch (kind) {
+      case "INVALID_CREDENTIALS":
+        return HttpStatus.UNAUTHORIZED;
       case "NOT_FOUND":
         return HttpStatus.NOT_FOUND;
       case "CONFLICT":
@@ -270,7 +272,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
       case HttpStatus.CONFLICT:
         return ErrorCode.CONFLICT;
       case HttpStatus.TOO_MANY_REQUESTS:
-        return ErrorCode.CONFLICT;
+        return ErrorCode.TOO_MANY_REQUESTS;
       default:
         return ErrorCode.INTERNAL_SERVER_ERROR;
     }

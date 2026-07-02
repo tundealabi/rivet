@@ -18,7 +18,7 @@ export const SignInUserResponseSchema = z.object({
 
 export const SignInAuthResponseSchema = z.object({
   authTokens: SignInAuthTokensResponseSchema,
-  org: SignInOrgResponseSchema,
+  // org: SignInOrgResponseSchema,
   user: SignInUserResponseSchema,
 });
 

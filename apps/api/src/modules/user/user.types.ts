@@ -1,19 +1,9 @@
-import { OperationContext } from "@/common/types";
-
 export interface CreateUserInput {
   email: string;
+  emailVerifiedAt?: Date;
+  emailVerifyOtp?: string | null;
+  emailVerifyOtpExpiresAt?: Date;
   firstName: string;
   hashedPassword: string;
   lastName: string;
-  ctx?: OperationContext;
-}
-
-export interface FindUserByEmailInput {
-  email: string;
-  ctx?: OperationContext;
-}
-
-export interface FindUserByIdInput {
-  id: string;
-  ctx?: OperationContext;
 }
