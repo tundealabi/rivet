@@ -4,7 +4,10 @@ import { Injectable } from "@nestjs/common";
 import { DatabaseService } from "@/database/database.service";
 import { DbOptions } from "@/database/database.types";
 
-import { CreateUserInput } from "./user.types";
+import {
+  CreateUserInput,
+  UpdateUserEmailVerificationInput,
+} from "./user.types";
 
 @Injectable()
 export class UserRepository {
@@ -31,6 +34,19 @@ export class UserRepository {
     const client = this.databaseService.resolveClient(options);
     return client.user.findUnique({
       where: { id },
+    });
+  }
+  async updateEmailVerification(
+    id: string,
+    input: UpdateUserEmailVerificationInput,
+    options?: DbOptions
+  ): Promise<User> {
+    const client = this.databaseService.resolveClient(options);
+    return client.user.update({
+      where: { id },
+      data: {
+        emailVerifiedAt: input.emailVerifiedAt,
+      },
     });
   }
 }

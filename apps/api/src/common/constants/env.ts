@@ -28,4 +28,5 @@ export const ENV_KEYS = {
   PAYMENT_FLW_WEBHOOK_SECRET: "payment.flutterwave.webhookSecret",
   PAYMENT_PAYSTACK_SECRET_KEY: "payment.paystack.secretKey",
   SECURITY_ENCRYPTION_KEY: "security.encryption.key",
+  SECURITY_HMAC_PEPPER: "security.hmacPepper",
 };

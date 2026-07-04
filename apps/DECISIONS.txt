@@ -1,2 +1,3 @@
 AUTH
 1. DEPEND ON THE DB UNIQUE CONSTRAINT INSTEAD OF DOING FIND BEFORE INSERT ON THE USER TABLE.
+2. chose soft-delete (used_at) over hard-delete specifically to preserve reuse-detection capability, with a TTL-based cleanup job to bound table growth

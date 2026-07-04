@@ -1,9 +1,11 @@
 export interface CreateUserInput {
   email: string;
   emailVerifiedAt?: Date;
-  emailVerifyOtp?: string | null;
-  emailVerifyOtpExpiresAt?: Date;
   firstName: string;
   hashedPassword: string;
   lastName: string;
+}
+
+export interface UpdateUserEmailVerificationInput {
+  emailVerifiedAt?: Date | null;
 }

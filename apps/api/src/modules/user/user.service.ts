@@ -7,7 +7,10 @@ import { DatabaseService } from "@/database/database.service";
 import { DbOptions } from "@/database/database.types";
 
 import { UserRepository } from "./user.repository";
-import { CreateUserInput } from "./user.types";
+import {
+  CreateUserInput,
+  UpdateUserEmailVerificationInput,
+} from "./user.types";
 
 @Injectable()
 export class UserService {
@@ -38,5 +41,13 @@ export class UserService {
 
   async findById(id: string, options?: DbOptions) {
     return this.userRepository.findById(id, options);
+  }
+
+  async updateEmailVerification(
+    id: string,
+    input: UpdateUserEmailVerificationInput,
+    options?: DbOptions
+  ) {
+    return this.userRepository.updateEmailVerification(id, input, options);
   }
 }

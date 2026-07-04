@@ -81,7 +81,7 @@ function extractExceptionCode(response: unknown): string | undefined {
 
 function resolveErrorMessage(code: string, fallback: string): string {
   if (Object.values(ErrorCode).includes(code as ErrorCode)) {
-    return ErrorMessage[code as ErrorCode];
+    return ErrorMessage[code as keyof typeof ErrorMessage] ?? fallback;
   }
 
   return fallback;
@@ -256,6 +256,8 @@ export class ApiExceptionFilter implements ExceptionFilter {
         return HttpStatus.CONFLICT;
       case "RULE_VIOLATION":
         return HttpStatus.UNPROCESSABLE_ENTITY;
+      case "TOO_MANY_REQUESTS":
+        return HttpStatus.TOO_MANY_REQUESTS;
       default:
         return HttpStatus.BAD_REQUEST;
     }
