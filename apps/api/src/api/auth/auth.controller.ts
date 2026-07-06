@@ -1,11 +1,15 @@
-import { Body, Controller, HttpStatus, Post } from "@nestjs/common";
+import { Body, Controller, HttpStatus, Post, Req, Res } from "@nestjs/common";
+import type { Request, Response } from "express";
+import { getClientIp } from "request-ip";
 
-import { ApiEnvelopeResponse } from "@/common/decorators";
+import { ApiEnvelopeResponse, Cookies } from "@/common/decorators";
 
+import { AUTH_REFRESH_TOKEN_COOKIE_NAME } from "./auth.constants";
 import { AuthService } from "./auth.service";
 import {
   EmailVerificationStatusResponseDto,
   LoginAuthRequestDto,
+  RefreshAuthResponseDto,
   RegisterAuthRequestDto,
   ResendEmailVerificationResponseDto,
   SendEmailVerificationResponseDto,
@@ -41,8 +45,79 @@ export class AuthController {
     httpStatus: HttpStatus.OK,
     summary: "Login a user",
   })
-  login(@Body() dto: LoginAuthRequestDto): Promise<SignInAuthResponseDto> {
-    return this.service.login(dto);
+  async login(
+    @Body() dto: LoginAuthRequestDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response
+  ): Promise<SignInAuthResponseDto> {
+    const result = await this.service.login({
+      ...dto,
+      ipAddress: getClientIp(req) || "",
+      userAgent: req.get("user-agent") || "",
+    });
+    res.cookie(
+      AUTH_REFRESH_TOKEN_COOKIE_NAME,
+      result.authTokens.refreshToken,
+      this.service.getCookieOptions()
+    );
+    return result;
+  }
+
+  // ------------------------------
+  // Logout
+  // ------------------------------
+
+  @Post("logout")
+  @ApiEnvelopeResponse(null, {
+    auth: "required",
+    description: "Logout a user",
+    httpStatus: HttpStatus.OK,
+    summary: "Logout a user",
+  })
+  logout(
+    @Cookies(AUTH_REFRESH_TOKEN_COOKIE_NAME) refreshToken: string,
+    @Res({ passthrough: true }) res: Response
+  ) {
+    res.clearCookie(AUTH_REFRESH_TOKEN_COOKIE_NAME, {
+      path: this.service.getCookieOptions().path,
+    });
+    return this.service.logout({
+      refreshToken,
+    });
+  }
+
+  // ------------------------------
+  // Refresh tokens
+  // ------------------------------
+
+  @Post("refresh")
+  @ApiEnvelopeResponse(RefreshAuthResponseDto, {
+    auth: "required",
+    description: "Refresh authentication tokens",
+    errorResponses: [
+      {
+        description: "Invalid refresh token",
+        status: HttpStatus.UNAUTHORIZED,
+      },
+    ],
+    httpStatus: HttpStatus.OK,
+    summary: "Refresh authentication tokens",
+  })
+  async refreshTokens(
+    @Cookies(AUTH_REFRESH_TOKEN_COOKIE_NAME) refreshToken: string,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response
+  ): Promise<RefreshAuthResponseDto> {
+    const result = await this.service.refreshTokens({
+      ipAddress: getClientIp(req) || "",
+      refreshToken,
+    });
+    res.cookie(
+      AUTH_REFRESH_TOKEN_COOKIE_NAME,
+      result.authTokens.refreshToken,
+      this.service.getCookieOptions()
+    );
+    return result;
   }
 
   // ------------------------------
@@ -72,7 +147,7 @@ export class AuthController {
   // Verify email
   // ------------------------------
 
-  @Post("verify-email/status")
+  // @Post("verify-email/status")
   @ApiEnvelopeResponse(EmailVerificationStatusResponseDto, {
     auth: "public",
     description: "Get email verification status for the verify UI",
@@ -85,7 +160,7 @@ export class AuthController {
     return this.service.getEmailVerificationStatus(dto);
   }
 
-  @Post("verify-email/send-otp")
+  // @Post("verify-email/send-otp")
   @ApiEnvelopeResponse(SendEmailVerificationResponseDto, {
     auth: "public",
     description:
@@ -105,7 +180,7 @@ export class AuthController {
     return this.service.sendEmailVerificationOtp(dto);
   }
 
-  @Post("verify-email/resend-otp")
+  // @Post("verify-email/resend-otp")
   @ApiEnvelopeResponse(ResendEmailVerificationResponseDto, {
     auth: "public",
     description: "Resend email verification OTP",
@@ -124,7 +199,7 @@ export class AuthController {
     return this.service.resendEmailVerification(dto);
   }
 
-  @Post("verify-email")
+  // @Post("verify-email")
   @ApiEnvelopeResponse(VerifyEmailResponseDto, {
     auth: "public",
     description: "Verify email with OTP code",

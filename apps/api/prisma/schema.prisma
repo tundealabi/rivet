@@ -41,7 +41,7 @@ model User {
 
   emailVerifications EmailVerification[]
   memberships        OrganizationMember[]
-  refreshTokens      RefreshToken[]
+  sessions           Session[]
 
   @@map("users")
 }
@@ -92,8 +92,8 @@ model OrganizationMember {
 
 model RefreshToken {
   id        String    @id @default(uuid()) @db.Uuid
-  userId    String    @map("user_id") @db.Uuid
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionId String    @map("session_id") @db.Uuid
+  session   Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   tokenHash String    @unique @map("token_hash")
   expiresAt DateTime  @map("expires_at")
   revokedAt DateTime? @map("revoked_at")
@@ -101,4 +101,26 @@ model RefreshToken {
   updatedAt DateTime  @updatedAt @map("updated_at")
 
   @@map("refresh_tokens")
+}
+
+model Session {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // frozen at login — audit trail of where the session originated
+  ipAddress String? @map("ip_address")
+  userAgent String? @map("user_agent")
+
+  // updated on each refresh — reflects current activity
+  lastSeenAt DateTime? @map("last_seen_at")
+  lastSeenIp String?   @map("last_seen_ip")
+
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  refreshTokens RefreshToken[]
+
+  @@map("sessions")
 }

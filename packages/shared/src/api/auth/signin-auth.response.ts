@@ -2,7 +2,6 @@ import { z } from "zod";
 
 export const SignInAuthTokensResponseSchema = z.object({
   accessToken: z.string().describe("JWT access token"),
-  refreshToken: z.string().describe("Long-lived refresh token"),
 });
 
 export const SignInOrgResponseSchema = z.object({
