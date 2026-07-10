@@ -1,3 +1,5 @@
+import { EmailVerification, User } from "@/generated/prisma/client";
+
 export interface LoginAuthInput {
   email: string;
   ipAddress: string;
@@ -25,6 +27,11 @@ export interface RefreshTokensAuthInput {
 
 export interface EmailVerificationByEmailInput {
   email: string;
+}
+
+export interface PendingSignUpVerification {
+  record: EmailVerification;
+  user: User;
 }
 
 export type ResendEmailVerificationInput = EmailVerificationByEmailInput;

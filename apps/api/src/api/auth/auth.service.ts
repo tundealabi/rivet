@@ -1,9 +1,4 @@
-import {
-  EmailVerification,
-  EmailVerificationContext,
-  OrganizationRole,
-  User,
-} from "@generated/prisma";
+import { EmailVerificationContext, OrganizationRole } from "@generated/prisma";
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { ErrorCode, ErrorMessage } from "@rivet/shared/enums";
@@ -29,16 +24,12 @@ import {
   EmailVerificationByEmailInput,
   LoginAuthInput,
   LogoutAuthInput,
+  PendingSignUpVerification,
   RefreshTokensAuthInput,
   RegisterAuthInput,
   ResendEmailVerificationInput,
   VerifyEmailInput,
 } from "./auth.types";
-
-interface PendingSignUpVerification {
-  record: EmailVerification;
-  user: User;
-}
 
 @Injectable()
 export class AuthService {

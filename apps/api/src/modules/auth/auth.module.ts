@@ -6,10 +6,11 @@ import { DatabaseModule } from "@/database/database.module";
 
 import { AuthRepository } from "./auth.repository";
 import { AuthService } from "./auth.service";
+import { AuthUserJwtStrategy } from "./auth.strategy";
 
 @Module({
   imports: [CommonModule, DatabaseModule, JwtModule],
-  providers: [AuthRepository, AuthService],
+  providers: [AuthRepository, AuthService, AuthUserJwtStrategy],
   exports: [AuthService],
 })
 export class AuthModule {}

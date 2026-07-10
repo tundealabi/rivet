@@ -13,8 +13,6 @@ import {
   SessionWhereUniqueInput,
 } from "@/generated/prisma/models";
 
-import {} from "./auth.types";
-
 @Injectable()
 export class AuthRepository {
   constructor(private readonly databaseService: DatabaseService) {}

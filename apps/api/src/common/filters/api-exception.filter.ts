@@ -15,7 +15,7 @@ import { ApiResponseState, ErrorCode, ErrorMessage } from "@rivet/shared/enums";
 import { Request, Response } from "express";
 import { ZodValidationException } from "nestjs-zod";
 
-import { DomainError } from "@/common/errors";
+import { DomainError, ValidationError } from "@/common/errors";
 
 const SENSITIVE_REQUEST_FIELDS = ["idToken", "password"] as const;
 
@@ -106,6 +106,25 @@ export class ApiExceptionFilter implements ExceptionFilter {
     const timestamp = new Date().toISOString();
     const requestId = request.requestId ?? "unknown";
     const requestLog = buildRequestLog(request);
+
+    if (exception instanceof ValidationError) {
+      const fields = exception.fields;
+      const body = buildValidationErrorBody(requestId, timestamp, fields);
+
+      this.logger.error(
+        {
+          errorMessage: ErrorMessage.VALIDATION_ERROR,
+          errorCode: ErrorCode.VALIDATION_ERROR,
+          errorResponse: fields,
+          errorStatus: HttpStatus.BAD_REQUEST,
+          request: requestLog,
+        },
+        `${ApiExceptionFilter.name}@ValidationError:${HttpStatus.BAD_REQUEST}`
+      );
+
+      response.status(HttpStatus.BAD_REQUEST).json(body);
+      return;
+    }
 
     if (exception instanceof DomainError) {
       const status = this.mapDomainErrorStatus(exception.kind);
@@ -250,6 +269,8 @@ export class ApiExceptionFilter implements ExceptionFilter {
     switch (kind) {
       case "INVALID_CREDENTIALS":
         return HttpStatus.UNAUTHORIZED;
+      case "FORBIDDEN":
+        return HttpStatus.FORBIDDEN;
       case "NOT_FOUND":
         return HttpStatus.NOT_FOUND;
       case "CONFLICT":

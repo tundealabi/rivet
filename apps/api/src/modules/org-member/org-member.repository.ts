@@ -3,11 +3,9 @@ import { Injectable } from "@nestjs/common";
 
 import { DatabaseService } from "@/database/database.service";
 import { DbOptions } from "@/database/database.types";
+import { OrganizationMemberWhereUniqueInput } from "@/generated/prisma/models";
 
-import {
-  CreateOrgMemberInput,
-  FindOrgMemberByUserIdAndOrgIdInput,
-} from "./org-member.types";
+import { CreateOrgMemberInput } from "./org-member.types";
 
 @Injectable()
 export class OrgMemberRepository {
@@ -27,18 +25,13 @@ export class OrgMemberRepository {
     });
   }
 
-  async findByUserIdAndOrgId(
-    input: FindOrgMemberByUserIdAndOrgIdInput,
+  async find(
+    where: OrganizationMemberWhereUniqueInput,
     options?: DbOptions
   ): Promise<OrganizationMember | null> {
     const client = this.databaseService.resolveClient(options);
     return client.organizationMember.findUnique({
-      where: {
-        organizationId_userId: {
-          organizationId: input.orgId,
-          userId: input.userId,
-        },
-      },
+      where,
     });
   }
 }

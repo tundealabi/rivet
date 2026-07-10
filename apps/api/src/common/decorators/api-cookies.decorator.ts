@@ -4,7 +4,7 @@ import { createParamDecorator, ExecutionContext } from "@nestjs/common";
 import type { Request } from "express";
 
 function readCookie(
-  cookies: Record<string, unknown>,
+  cookies: Record<string, unknown> = {},
   name: string
 ): string | undefined {
   const value = cookies[name];
@@ -26,7 +26,6 @@ export const Cookies = createParamDecorator(
   ): string | Record<string, string> | undefined => {
     const request = ctx.switchToHttp().getRequest<Request>();
     const cookies = request.cookies as Record<string, unknown>;
-
     return data ? readCookie(cookies, data) : readCookies(cookies);
   }
 );
