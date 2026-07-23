@@ -3,7 +3,8 @@ import { useMemo, useState } from "react";
 import { PiSignOut } from "react-icons/pi";
 import { useNavigate } from "react-router-dom";
 
-import { AppSidebar, useLogout } from "../components/app/AppSidebar";
+import { AppSidebar } from "../components/app/AppSidebar";
+import { useLogout } from "../components/app/use-logout";
 import { SitewidePaymentWarning } from "../components/billing/SitewidePaymentWarning";
 import { useActiveOrg } from "../components/billing/use-active-org";
 import { useBillingSummary } from "../components/billing/use-billing-queries";

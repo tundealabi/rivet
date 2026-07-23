@@ -3,10 +3,11 @@ import { OrganizationRole } from "@rivet/shared";
 import { useCallback, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
-import { useRegisterIssueDetailShortcuts } from "./issue-detail-shortcuts";
+import { useRegisterIssueDetailShortcuts } from "./issue-detail-shortcuts-context";
+import { buildTimeline } from "./issue-timeline";
 import type { Issue, IssueActivityEvent, TeamMember } from "./issue-types";
 import { ISSUE_DETAIL_PAGE_MAX_W } from "./issue-types";
-import { buildTimeline, IssueActivityThread } from "./IssueActivityThread";
+import { IssueActivityThread } from "./IssueActivityThread";
 import { IssueCommentComposer } from "./IssueCommentComposer";
 import { IssueDescriptionSection } from "./IssueDescriptionSection";
 import type { IssueDetailVariant } from "./IssueDetailContent";

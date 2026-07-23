@@ -31,26 +31,21 @@ export function useOrgSwitcherKeyboard({
   const itemRefs = useRef<Array<HTMLElement | null>>([]);
   const typeaheadTimerRef = useRef<number | null>(null);
 
-  useEffect(() => {
+  // Reset/clamp the highlighted index as the menu opens or its actions change,
+  // during render (avoids cascading renders from set-state-in-effect).
+  const [prevOpen, setPrevOpen] = useState(open);
+  const [prevActions, setPrevActions] = useState(actions);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
+    setPrevActions(actions);
     if (open) {
-      setHighlightIndex(0);
       setTypeahead("");
+      setHighlightIndex(clampHighlightIndex(actions, 0));
     }
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    setHighlightIndex((current) => {
-      if (actions.length === 0) return 0;
-      if (current >= actions.length) {
-        return findNextEnabledIndex(actions, actions.length - 1, 1);
-      }
-      if (isActionDisabled(actions[current])) {
-        return findNextEnabledIndex(actions, current, 1);
-      }
-      return current;
-    });
-  }, [actions, open]);
+  } else if (open && prevActions !== actions) {
+    setPrevActions(actions);
+    setHighlightIndex((current) => clampHighlightIndex(actions, current));
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -188,6 +183,20 @@ export function useOrgSwitcherKeyboard({
     setHighlightIndex,
     typeahead,
   };
+}
+
+function clampHighlightIndex(
+  actions: OrgSwitcherMenuAction[],
+  current: number
+): number {
+  if (actions.length === 0) return 0;
+  if (current >= actions.length) {
+    return findNextEnabledIndex(actions, actions.length - 1, 1);
+  }
+  if (isActionDisabled(actions[current])) {
+    return findNextEnabledIndex(actions, current, 1);
+  }
+  return current;
 }
 
 function findNextEnabledIndex(

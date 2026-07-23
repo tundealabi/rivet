@@ -11,7 +11,7 @@ import { BrowserRouter } from "react-router-dom";
 
 import App from "./App.tsx";
 import { UnsavedChangesProvider } from "./components/app/unsaved-changes-registry";
-import { ActiveOrgProvider } from "./components/billing/use-active-org";
+import { ActiveOrgProvider } from "./components/billing/ActiveOrgProvider";
 import { AppErrorBoundary } from "./components/errors/AppErrorBoundary";
 import { ColorModeProvider } from "./components/theme/color-mode";
 import { system } from "./theme.ts";

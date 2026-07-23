@@ -5,7 +5,7 @@ import {
   issueDetailFullPath,
   projectIssuesForDetail,
   useIssueDetailActions,
-} from "./issue-detail-context";
+} from "./issue-detail-actions";
 import { IssueDetailDrawer } from "./IssueDetailDrawer";
 
 export function IssueDetailDrawerHost() {

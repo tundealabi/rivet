@@ -1,13 +1,13 @@
 import { Box, Text } from "@chakra-ui/react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 
-import { useRegisterIssueDetailShortcuts } from "./issue-detail-shortcuts";
+import { useRegisterIssueDetailShortcuts } from "./issue-detail-shortcuts-context";
 import type { Issue, TeamMember } from "./issue-types";
 import { IssueMarkdown } from "./IssueMarkdown";
 import { IssueConflictError, updateIssuePatchMock } from "./issues-api";
 import { transition } from "./issues-motion";
+import { clearMarkdownDraft } from "./markdown-draft";
 import {
-  clearMarkdownDraft,
   MarkdownEditorActions,
   MarkdownEditorHint,
   MarkdownTextarea,
@@ -35,11 +35,16 @@ export function IssueDescriptionSection({
   const [conflict, setConflict] = useState(false);
   const draftKey = `desc:${issue.id}`;
 
-  useEffect(() => {
+  const [synced, setSynced] = useState({
+    id: issue.id,
+    description: issue.description,
+  });
+  if (synced.id !== issue.id || synced.description !== issue.description) {
+    setSynced({ id: issue.id, description: issue.description });
     setDraft(issue.description);
     setEditing(false);
     setConflict(false);
-  }, [issue.id, issue.description]);
+  }
 
   const startEditing = useCallback(() => {
     if (editable) setEditing(true);

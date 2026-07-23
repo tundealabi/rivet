@@ -1,10 +1,6 @@
+import { PRIORITY_OPTIONS, STATUS_OPTIONS } from "./issue-filters";
 import type { IssueActivityEvent } from "./issue-types";
-import {
-  type IssuePriority,
-  type IssueStatus,
-  PRIORITY_OPTIONS,
-  STATUS_OPTIONS,
-} from "./IssueFilterBar";
+import type { IssuePriority, IssueStatus } from "./IssueFilterBar";
 
 const STATUS_LABEL = Object.fromEntries(
   STATUS_OPTIONS.map((o) => [o.value, o.label])

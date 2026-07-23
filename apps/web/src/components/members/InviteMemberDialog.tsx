@@ -13,7 +13,7 @@ import {
   Textarea,
 } from "@chakra-ui/react";
 import { OrganizationRole } from "@rivet/shared";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
 import { EASE_OUT } from "../issues/issues-motion";
@@ -119,9 +119,11 @@ export function InviteMemberDialog({
     setSending(false);
   };
 
-  useEffect(() => {
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
     if (!open) reset();
-  }, [open]);
+  }
 
   const formDisabled = sending;
 

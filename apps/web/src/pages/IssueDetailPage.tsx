@@ -5,20 +5,21 @@ import toast from "react-hot-toast";
 import { PiArrowLeft } from "react-icons/pi";
 import { useNavigate, useParams } from "react-router-dom";
 
-import { AppSidebar, useLogout } from "../components/app/AppSidebar";
-import { issueDetailPath } from "../components/issues/issue-detail-context";
-import type {
-  Issue,
-  IssueActivityEvent,
-} from "../components/issues/issue-types";
+import { AppSidebar } from "../components/app/AppSidebar";
+import { useLogout } from "../components/app/use-logout";
+import { issueDetailPath } from "../components/issues/issue-detail-actions";
 import {
   applyIssueActivityAdd,
   applyIssueCommentAdd,
   applyIssueCommentDelete,
   applyIssueCommentEdit,
   applyIssueReactionToggle,
-  IssueDetailContent,
-} from "../components/issues/IssueDetailContent";
+} from "../components/issues/issue-detail-mutations";
+import type {
+  Issue,
+  IssueActivityEvent,
+} from "../components/issues/issue-types";
+import { IssueDetailContent } from "../components/issues/IssueDetailContent";
 import {
   CommentRateLimitError,
   fetchIssuesMock,

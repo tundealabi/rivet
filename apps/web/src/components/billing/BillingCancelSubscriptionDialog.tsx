@@ -1,5 +1,5 @@
 import { Box, Button, Dialog, Flex, Stack, Text } from "@chakra-ui/react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import type { CancellationReason } from "./billing-api";
 import { PLAN_CARDS } from "./billing-plan-data";
@@ -34,9 +34,11 @@ export function BillingCancelSubscriptionDialog({
 }: BillingCancelSubscriptionDialogProps) {
   const [reason, setReason] = useState<CancellationReason | "">("");
 
-  useEffect(() => {
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
     if (!open) setReason("");
-  }, [open]);
+  }
 
   const planName = PLAN_DISPLAY_NAMES[subscription.planTier];
   const endDate = subscription.renewsAt

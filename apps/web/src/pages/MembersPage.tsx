@@ -14,7 +14,8 @@ import toast from "react-hot-toast";
 import { PiPlusBold, PiSignOut } from "react-icons/pi";
 import { Link as RouterLink, useSearchParams } from "react-router-dom";
 
-import { AppSidebar, useLogout } from "../components/app/AppSidebar";
+import { AppSidebar } from "../components/app/AppSidebar";
+import { useLogout } from "../components/app/use-logout";
 import { EASE_OUT, transition } from "../components/issues/issues-motion";
 import { InviteMemberDialog } from "../components/members/InviteMemberDialog";
 import {
@@ -144,8 +145,14 @@ export default function MembersPage() {
     MOCK_CURRENT_USER_ID
   );
 
-  const members = rosterQuery.data?.members ?? [];
-  const invites = rosterQuery.data?.invites ?? [];
+  const members = useMemo(
+    () => rosterQuery.data?.members ?? [],
+    [rosterQuery.data]
+  );
+  const invites = useMemo(
+    () => rosterQuery.data?.invites ?? [],
+    [rosterQuery.data]
+  );
 
   const seatLimit = PLAN_SEAT_LIMITS[MOCK_PLAN_TIER];
   const seatsUsed = useMemo(

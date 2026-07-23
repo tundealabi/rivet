@@ -1,12 +1,10 @@
 import { Box, Button, Flex, HStack, Stack, Text } from "@chakra-ui/react";
-import toast from "react-hot-toast";
 import { IoBugSharp, IoCard, IoSettings } from "react-icons/io5";
 import { MdSpaceDashboard } from "react-icons/md";
 import { PiSignOut, PiUsersThreeFill } from "react-icons/pi";
 import { TbFolderOpenFilled } from "react-icons/tb";
-import { Link as RouterLink, useLocation, useNavigate } from "react-router-dom";
+import { Link as RouterLink, useLocation } from "react-router-dom";
 
-import { logoutUser } from "../../auth-api";
 import { canViewBilling } from "../billing/billing-permissions";
 import { useActiveOrg } from "../billing/use-active-org";
 import { ColorModeToggle } from "../theme/color-mode";
@@ -29,17 +27,6 @@ const IMPLEMENTED_PATHS = new Set([
   "/billing",
   "/settings",
 ]);
-
-export function useLogout() {
-  const navigate = useNavigate();
-
-  return () => {
-    void logoutUser().then(() => {
-      toast.success("Logged out");
-      void navigate("/login");
-    });
-  };
-}
 
 interface AppSidebarProps {
   onLogout: () => void;

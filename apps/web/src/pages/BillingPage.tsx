@@ -4,7 +4,8 @@ import toast from "react-hot-toast";
 import { PiArrowSquareOut, PiSignOut } from "react-icons/pi";
 import { useSearchParams } from "react-router-dom";
 
-import { AppSidebar, useLogout } from "../components/app/AppSidebar";
+import { AppSidebar } from "../components/app/AppSidebar";
+import { useLogout } from "../components/app/use-logout";
 import {
   type CancellationReason,
   createStripePortalSessionMock,

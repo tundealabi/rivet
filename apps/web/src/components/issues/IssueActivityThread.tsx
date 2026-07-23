@@ -14,6 +14,7 @@ import { PiPencilSimple, PiTrash, PiUserCircle } from "react-icons/pi";
 
 import { formatActivityMessage } from "./issue-activity";
 import { canDeleteComment, canEditComment } from "./issue-permissions";
+import type { TimelineItem } from "./issue-timeline";
 import {
   DEFAULT_REACTIONS,
   formatRelativeTime,
@@ -22,10 +23,6 @@ import {
 } from "./issue-types";
 import { IssueMarkdown } from "./IssueMarkdown";
 import { EASE_OUT, stagger, transition } from "./issues-motion";
-
-export type TimelineItem =
-  | { kind: "activity"; data: IssueActivityEvent }
-  | { kind: "comment"; data: IssueComment };
 
 function MemberAvatar({
   initials,
@@ -324,18 +321,5 @@ export function IssueActivityThread({
         </Stack>
       )}
     </Box>
-  );
-}
-
-export function buildTimeline(
-  activity: IssueActivityEvent[],
-  comments: IssueComment[]
-): TimelineItem[] {
-  const items: TimelineItem[] = [
-    ...activity.map((data) => ({ kind: "activity" as const, data })),
-    ...comments.map((data) => ({ kind: "comment" as const, data })),
-  ];
-  return items.sort(
-    (a, b) => a.data.createdAt.getTime() - b.data.createdAt.getTime()
   );
 }

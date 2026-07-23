@@ -1,7 +1,7 @@
+import { EMPTY_FILTERS } from "../issues/issue-filters";
 import type { Issue } from "../issues/issue-types";
 import { isIssueOverdue } from "../issues/issue-types";
 import type { IssueFilters, IssueStatus } from "../issues/IssueFilterBar";
-import { EMPTY_FILTERS } from "../issues/IssueFilterBar";
 
 export type IssueListPreset =
   "open" | "in_progress" | "done_week" | "overdue" | "assigned_me";

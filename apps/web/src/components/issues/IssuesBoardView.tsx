@@ -12,9 +12,9 @@ import { useCallback, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { PiChatCircleDots, PiPlus } from "react-icons/pi";
 
+import { STATUS_OPTIONS } from "./issue-filters";
 import { type Issue, PRIORITY_DOT_COLOR } from "./issue-types";
-import type { IssueFilters } from "./IssueFilterBar";
-import { type IssueStatus, STATUS_OPTIONS } from "./IssueFilterBar";
+import type { IssueFilters, IssueStatus } from "./IssueFilterBar";
 import { updateIssueStatusApi } from "./issues-api";
 import {
   EASE_OUT,

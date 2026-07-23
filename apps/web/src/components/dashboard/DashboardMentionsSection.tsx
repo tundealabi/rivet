@@ -1,7 +1,7 @@
 import { Stack, Text } from "@chakra-ui/react";
 import { useNavigate } from "react-router-dom";
 
-import { issueDetailPath } from "../issues/issue-detail-context";
+import { issueDetailPath } from "../issues/issue-detail-actions";
 import {
   formatActivityTimestamp,
   formatMentionLine,

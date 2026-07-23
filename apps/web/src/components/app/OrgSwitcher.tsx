@@ -39,7 +39,7 @@ import {
   OrgSwitcherMenuSkeleton,
 } from "./OrgSwitcherMenuStates";
 import { OrgSwitchUnsavedDialog } from "./OrgSwitchUnsavedDialog";
-import { useUnsavedChangesRegistry } from "./unsaved-changes-registry";
+import { useUnsavedChangesRegistry } from "./unsaved-changes-context";
 import {
   type OrgSwitcherMenuAction,
   useOrgSwitcherKeyboard,
@@ -412,7 +412,7 @@ export function OrgSwitcher({ collapsed = false }: OrgSwitcherProps) {
       if (!nextOrg || nextOrgId === orgId || isSwitching) return;
 
       setMenuOpen(false);
-      navigate("/projects");
+      void navigate("/projects");
 
       const success = await switchOrg(nextOrgId);
 
@@ -510,9 +510,14 @@ export function OrgSwitcher({ collapsed = false }: OrgSwitcherProps) {
     return () => window.removeEventListener(ORG_SWITCHER_OPEN_EVENT, openMenu);
   }, []);
 
+  const [prevMenuOpen, setPrevMenuOpen] = useState(menuOpen);
+  if (prevMenuOpen !== menuOpen) {
+    setPrevMenuOpen(menuOpen);
+    if (menuOpen) setSearchQuery("");
+  }
+
   useEffect(() => {
     if (menuOpen) {
-      setSearchQuery("");
       window.requestAnimationFrame(() => menuRef.current?.focus());
     }
   }, [menuOpen]);

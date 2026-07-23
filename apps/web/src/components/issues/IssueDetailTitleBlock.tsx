@@ -43,10 +43,12 @@ export function IssueDetailTitleBlock({
   const [draft, setDraft] = useState(issue.title);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
+  const [synced, setSynced] = useState({ id: issue.id, title: issue.title });
+  if (synced.id !== issue.id || synced.title !== issue.title) {
+    setSynced({ id: issue.id, title: issue.title });
     setDraft(issue.title);
     setEditing(false);
-  }, [issue.id, issue.title]);
+  }
 
   useEffect(() => {
     if (editing) {

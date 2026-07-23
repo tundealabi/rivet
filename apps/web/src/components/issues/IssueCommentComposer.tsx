@@ -1,13 +1,10 @@
 import { Box, Button, Stack } from "@chakra-ui/react";
 import { useCallback, useRef, useState } from "react";
 
-import { useRegisterIssueDetailShortcuts } from "./issue-detail-shortcuts";
+import { useRegisterIssueDetailShortcuts } from "./issue-detail-shortcuts-context";
 import type { Issue, TeamMember } from "./issue-types";
-import {
-  clearMarkdownDraft,
-  MarkdownEditorHint,
-  MarkdownTextarea,
-} from "./MarkdownTextarea";
+import { clearMarkdownDraft } from "./markdown-draft";
+import { MarkdownEditorHint, MarkdownTextarea } from "./MarkdownTextarea";
 
 interface IssueCommentComposerProps {
   issueId: string;

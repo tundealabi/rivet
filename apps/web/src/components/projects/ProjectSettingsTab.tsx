@@ -13,7 +13,7 @@ import {
   Textarea,
 } from "@chakra-ui/react";
 import { OrganizationRole } from "@rivet/shared";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { PiLock, PiUsers } from "react-icons/pi";
 
@@ -190,9 +190,11 @@ function DeleteConfirmDialog({
 }: DeleteConfirmDialogProps) {
   const [confirmName, setConfirmName] = useState("");
 
-  useEffect(() => {
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
     if (!open) setConfirmName("");
-  }, [open]);
+  }
 
   const matches = confirmName.trim() === projectName;
 
@@ -294,11 +296,28 @@ export function ProjectSettingsTab({
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
-  useEffect(() => {
+  const [synced, setSynced] = useState({
+    id: project.id,
+    name: project.name,
+    key: project.key,
+    description: project.description,
+  });
+  if (
+    synced.id !== project.id ||
+    synced.name !== project.name ||
+    synced.key !== project.key ||
+    synced.description !== project.description
+  ) {
+    setSynced({
+      id: project.id,
+      name: project.name,
+      key: project.key,
+      description: project.description,
+    });
     setName(project.name);
     setKey(project.key);
     setDescription(project.description);
-  }, [project.id, project.name, project.key, project.description]);
+  }
 
   const canManage = canManageProject(role);
   const canDelete = canDeleteProject(role);

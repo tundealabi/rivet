@@ -2,7 +2,8 @@ import { Box, Button, Flex, Heading, Stack, Text } from "@chakra-ui/react";
 import { PiBuildingOffice } from "react-icons/pi";
 import { useNavigate } from "react-router-dom";
 
-import { AppSidebar, useLogout } from "../components/app/AppSidebar";
+import { AppSidebar } from "../components/app/AppSidebar";
+import { useLogout } from "../components/app/use-logout";
 
 export default function OnboardingPage() {
   const logout = useLogout();

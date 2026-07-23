@@ -19,8 +19,8 @@ import {
   PiX,
 } from "react-icons/pi";
 
-import { issueDetailPath } from "./issue-detail-context";
-import { useIssueDetailShortcuts } from "./issue-detail-shortcuts";
+import { issueDetailPath } from "./issue-detail-actions";
+import { useIssueDetailShortcuts } from "./issue-detail-shortcuts-context";
 import { formatProjectIssueKey, type Issue } from "./issue-types";
 import { EASE_OUT, transition } from "./issues-motion";
 

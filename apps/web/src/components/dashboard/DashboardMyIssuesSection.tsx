@@ -1,12 +1,12 @@
 import { Box, Flex, HStack, Stack, Text } from "@chakra-ui/react";
 
+import { STATUS_OPTIONS } from "../issues/issue-filters";
 import {
   formatProjectIssueKey,
   type Issue,
   PRIORITY_DOT_COLOR,
   STATUS_DOT_COLOR,
 } from "../issues/issue-types";
-import { STATUS_OPTIONS } from "../issues/IssueFilterBar";
 import { formatIssueDueLabel, isIssueDueOverdue } from "./dashboard-content";
 import {
   DashboardMetaItem,

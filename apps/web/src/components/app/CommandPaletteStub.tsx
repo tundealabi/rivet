@@ -61,9 +61,11 @@ export function CommandPaletteStub() {
     }
   }, [open]);
 
-  useEffect(() => {
+  const [prevQuery, setPrevQuery] = useState(query);
+  if (prevQuery !== query) {
+    setPrevQuery(query);
     setHighlightIndex(0);
-  }, [query]);
+  }
 
   const activate = useCallback(
     (index: number) => {

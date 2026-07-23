@@ -16,32 +16,33 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { Outlet, useMatch, useNavigate, useParams } from "react-router-dom";
 
-import { AppSidebar, useLogout } from "../components/app/AppSidebar";
-import {
-  issueDetailPath,
-  IssueDetailProvider,
-} from "../components/issues/issue-detail-context";
-import { canDeleteIssues } from "../components/issues/issue-permissions";
-import {
-  type Issue,
-  type IssueActivityEvent,
-} from "../components/issues/issue-types";
+import { AppSidebar } from "../components/app/AppSidebar";
+import { useLogout } from "../components/app/use-logout";
+import { issueDetailPath } from "../components/issues/issue-detail-actions";
+import { IssueDetailProvider } from "../components/issues/issue-detail-context";
 import {
   applyIssueActivityAdd,
   applyIssueCommentAdd,
   applyIssueCommentDelete,
   applyIssueCommentEdit,
   applyIssueReactionToggle,
-} from "../components/issues/IssueDetailContent";
+} from "../components/issues/issue-detail-mutations";
 import {
   EMPTY_FILTERS,
   filterIssues,
   hasActiveFilters,
+  STATUS_OPTIONS,
+} from "../components/issues/issue-filters";
+import { canDeleteIssues } from "../components/issues/issue-permissions";
+import {
+  type Issue,
+  type IssueActivityEvent,
+} from "../components/issues/issue-types";
+import {
   IssueFilterBar,
   type IssueFilters,
   type IssuePriority,
   type IssueStatus,
-  STATUS_OPTIONS,
 } from "../components/issues/IssueFilterBar";
 import {
   CommentRateLimitError,
@@ -116,10 +117,11 @@ function ProjectNewIssueDialog({
   const [status, setStatus] = useState<IssueStatus>("todo");
   const [titleError, setTitleError] = useState("");
 
-  useEffect(() => {
-    if (!open) return;
-    setStatus(initialStatus ?? "todo");
-  }, [open, initialStatus]);
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
+    if (open) setStatus(initialStatus ?? "todo");
+  }
 
   const reset = () => {
     setTitle("");
@@ -316,8 +318,9 @@ export default function ProjectDetailPage() {
   const logout = useLogout();
 
   const [project, setProject] = useState<Project | null>(null);
-  const [projectLoadState, setProjectLoadState] =
-    useState<ProjectLoadState>("loading");
+  const [projectLoadState, setProjectLoadState] = useState<ProjectLoadState>(
+    () => (projectId ? "loading" : "not_found")
+  );
 
   const [issues, setIssues] = useState<Issue[]>([]);
   const [issuesLoadState, setIssuesLoadState] =
@@ -335,66 +338,75 @@ export default function ProjectDetailPage() {
   const canManage = canManageProject(MOCK_ROLE);
   const canDelete = canDeleteIssues(MOCK_ROLE);
 
-  const loadProject = useCallback(async () => {
-    if (!projectId) {
-      setProjectLoadState("not_found");
-      return;
-    }
+  // Reset load state when navigating between projects (render-phase, so the
+  // fetch effects below never need to set "loading" synchronously).
+  const [trackedProjectId, setTrackedProjectId] = useState(projectId);
+  if (trackedProjectId !== projectId) {
+    setTrackedProjectId(projectId);
+    setProject(null);
+    setProjectLoadState(projectId ? "loading" : "not_found");
+    setIssues([]);
+    setIssuesLoadState("loading");
+    setSelectedIds(new Set());
+  }
 
-    setProjectLoadState("loading");
-    try {
-      const result = await fetchProjectMock(projectId);
-      if (!result) {
+  const loadProject = useCallback(() => {
+    if (!projectId) return;
+    fetchProjectMock(projectId)
+      .then((result) => {
+        if (!result) {
+          setProject(null);
+          setProjectLoadState("not_found");
+          return;
+        }
+        setProject(result);
+        setProjectLoadState("success");
+      })
+      .catch(() => {
         setProject(null);
-        setProjectLoadState("not_found");
-        return;
-      }
-      setProject(result);
-      setProjectLoadState("success");
-    } catch {
-      setProject(null);
-      setProjectLoadState("error");
-    }
+        setProjectLoadState("error");
+      });
   }, [projectId]);
 
+  const retryProject = () => {
+    setProjectLoadState("loading");
+    loadProject();
+  };
+
   useEffect(() => {
-    void loadProject();
+    loadProject();
   }, [loadProject]);
 
-  useEffect(() => {
-    if (activeTab === "settings" && !canManage) {
-      setActiveTab("issues");
-    }
-  }, [activeTab, canManage]);
+  // Guard the settings tab when the viewer can't manage the project.
+  if (activeTab === "settings" && !canManage) {
+    setActiveTab("issues");
+  }
 
-  useEffect(() => {
-    if (issueId) {
-      setActiveTab("issues");
-    }
-  }, [issueId]);
+  const [trackedIssueId, setTrackedIssueId] = useState(issueId);
+  if (trackedIssueId !== issueId) {
+    setTrackedIssueId(issueId);
+    if (issueId) setActiveTab("issues");
+  }
 
-  const loadIssues = useCallback(async () => {
+  const loadIssues = useCallback(() => {
     if (!projectId) return;
-    setIssuesLoadState("loading");
-    try {
-      const data = await fetchIssuesMock(MOCK_ISSUES);
-      setIssues(data.filter((issue) => issue.projectId === projectId));
-      setIssuesLoadState("success");
-    } catch {
-      setIssuesLoadState("error");
-    }
+    fetchIssuesMock(MOCK_ISSUES)
+      .then((data) => {
+        setIssues(data.filter((issue) => issue.projectId === projectId));
+        setIssuesLoadState("success");
+      })
+      .catch(() => setIssuesLoadState("error"));
   }, [projectId]);
+
+  const retryIssues = () => {
+    setIssuesLoadState("loading");
+    loadIssues();
+  };
 
   useEffect(() => {
     if (projectLoadState !== "success") return;
-    void loadIssues();
+    loadIssues();
   }, [projectLoadState, loadIssues]);
-
-  useEffect(() => {
-    if (issuesLoadState !== "success") return;
-    setIsRefetching(true);
-    void refetchIssuesMock().finally(() => setIsRefetching(false));
-  }, [filters, issuesLoadState]);
 
   const projectStats = useMemo(() => computeProjectStats(issues), [issues]);
 
@@ -405,9 +417,17 @@ export default function ProjectDetailPage() {
 
   const filtersActive = hasActiveFilters(filters);
 
-  useEffect(() => {
-    setSelectedIds(new Set());
-  }, [filters]);
+  const handleFiltersChange = useCallback(
+    (next: IssueFilters) => {
+      setFilters(next);
+      setSelectedIds(new Set());
+      if (issuesLoadState === "success") {
+        setIsRefetching(true);
+        void refetchIssuesMock().finally(() => setIsRefetching(false));
+      }
+    },
+    [issuesLoadState]
+  );
 
   const nextIssueNumber = useMemo(
     () => Math.max(0, ...issues.map((i) => i.number)) + 1,
@@ -533,7 +553,7 @@ export default function ProjectDetailPage() {
     }
 
     if (issuesLoadState === "error") {
-      return <IssuesErrorState onRetry={() => void loadIssues()} />;
+      return <IssuesErrorState onRetry={retryIssues} />;
     }
 
     if (issues.length === 0 && !filtersActive) {
@@ -547,7 +567,9 @@ export default function ProjectDetailPage() {
 
     if (filteredIssues.length === 0 && filtersActive) {
       return (
-        <IssuesFilterEmptyState onClear={() => setFilters(EMPTY_FILTERS)} />
+        <IssuesFilterEmptyState
+          onClear={() => handleFiltersChange(EMPTY_FILTERS)}
+        />
       );
     }
 
@@ -637,7 +659,7 @@ export default function ProjectDetailPage() {
         <IssuesRefetchBar active={isRefetching} />
         <IssueFilterBar
           filters={filters}
-          onChange={setFilters}
+          onChange={handleFiltersChange}
           projects={[]}
           teamMembers={MOCK_TEAM_MEMBERS}
           currentUserName={MOCK_CURRENT_USER}
@@ -668,7 +690,7 @@ export default function ProjectDetailPage() {
 
         {projectLoadState === "error" && (
           <Box px={{ base: "5", md: "10" }} py="8">
-            <ProjectLoadErrorState onRetry={() => void loadProject()} />
+            <ProjectLoadErrorState onRetry={retryProject} />
           </Box>
         )}
 

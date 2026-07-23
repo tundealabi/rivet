@@ -16,6 +16,7 @@ import { PiCaretDown, PiCaretUp, PiPlus, PiX } from "react-icons/pi";
 import { Link as RouterLink } from "react-router-dom";
 
 import { createActivityEvent } from "./issue-activity";
+import { PRIORITY_OPTIONS, STATUS_OPTIONS } from "./issue-filters";
 import {
   formatDateLong,
   formatDueDate,
@@ -29,12 +30,7 @@ import {
   STATUS_DOT_COLOR,
   type TeamMember,
 } from "./issue-types";
-import {
-  type IssuePriority,
-  type IssueStatus,
-  PRIORITY_OPTIONS,
-  STATUS_OPTIONS,
-} from "./IssueFilterBar";
+import type { IssuePriority, IssueStatus } from "./IssueFilterBar";
 import { updateIssuePatchMock, updateIssueStatusApi } from "./issues-api";
 import { EASE_OUT, transition } from "./issues-motion";
 

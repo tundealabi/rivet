@@ -3,7 +3,8 @@ import { useMemo, useState } from "react";
 import { PiSignOut } from "react-icons/pi";
 import { useSearchParams } from "react-router-dom";
 
-import { AppSidebar, useLogout } from "../components/app/AppSidebar";
+import { AppSidebar } from "../components/app/AppSidebar";
+import { useLogout } from "../components/app/use-logout";
 import { useActiveOrg } from "../components/billing/use-active-org";
 import { EASE_OUT, fadeIn } from "../components/issues/issues-motion";
 import { MOCK_ROLE } from "../components/members/mock-members-data";

@@ -11,8 +11,9 @@ import toast from "react-hot-toast";
 import { PiSignOut } from "react-icons/pi";
 import { useNavigate } from "react-router-dom";
 
-import { AppSidebar, useLogout } from "../components/app/AppSidebar";
+import { AppSidebar } from "../components/app/AppSidebar";
 import type { PendingOrgInvitation } from "../components/app/org-switcher-types";
+import { useLogout } from "../components/app/use-logout";
 import {
   useAcceptOrgInvitationMutation,
   useDeclineOrgInvitationMutation,

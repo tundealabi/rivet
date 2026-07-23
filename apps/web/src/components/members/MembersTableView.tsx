@@ -155,7 +155,7 @@ export function MembersTableView({
 
   useEffect(() => {
     setPage(1);
-  }, [search, roleFilter, sortField, sortDirection]);
+  }, [search, roleFilter, sortField, sortDirection, setPage]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, pageCount);

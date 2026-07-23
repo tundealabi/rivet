@@ -21,6 +21,7 @@ import {
   PiTrash,
 } from "react-icons/pi";
 
+import { STATUS_OPTIONS } from "./issue-filters";
 import {
   formatIssueKey,
   formatProjectIssueKey,
@@ -31,7 +32,7 @@ import {
   STATUS_DOT_COLOR,
   type TeamMember,
 } from "./issue-types";
-import { type IssueStatus, STATUS_OPTIONS } from "./IssueFilterBar";
+import type { IssueStatus } from "./IssueFilterBar";
 import { EASE_OUT, stagger, transition } from "./issues-motion";
 
 const PAGE_SIZE = 50;

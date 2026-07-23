@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
 import type { BillingData } from "../billing/billing-types";
-import { issueDetailPath } from "../issues/issue-detail-context";
+import { issueDetailPath } from "../issues/issue-detail-actions";
 import type { Issue } from "../issues/issue-types";
 import type { PendingInvite } from "../members/member-types";
 import { countSeatsUsed } from "../members/member-types";

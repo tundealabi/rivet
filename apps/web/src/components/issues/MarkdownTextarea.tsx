@@ -7,7 +7,7 @@ import {
   Text,
   Textarea,
 } from "@chakra-ui/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   PiCode,
   PiLink,
@@ -23,6 +23,7 @@ import {
   type TeamMember,
 } from "./issue-types";
 import { transition } from "./issues-motion";
+import { draftStorageKey } from "./markdown-draft";
 
 type AutocompleteKind = "mention" | "issue" | null;
 
@@ -36,10 +37,6 @@ interface MarkdownTextareaProps {
   draftKey?: string;
   autoFocus?: boolean;
   inputRef?: React.RefObject<HTMLTextAreaElement | null>;
-}
-
-function draftStorageKey(key: string) {
-  return `rivet:issue-draft:${key}`;
 }
 
 export function MarkdownTextarea({
@@ -74,24 +71,21 @@ export function MarkdownTextarea({
     }
   }, [value, draftKey]);
 
-  const insertAtCursor = useCallback(
-    (before: string, after = "", placeholderText = "") => {
-      const el = textareaRef.current;
-      if (!el) return;
-      const start = el.selectionStart;
-      const end = el.selectionEnd;
-      const selected = value.slice(start, end) || placeholderText;
-      const next =
-        value.slice(0, start) + before + selected + after + value.slice(end);
-      onChange(next);
-      requestAnimationFrame(() => {
-        el.focus();
-        const cursor = start + before.length + selected.length;
-        el.setSelectionRange(cursor, cursor);
-      });
-    },
-    [onChange, value]
-  );
+  const insertAtCursor = (before: string, after = "", placeholderText = "") => {
+    const el = textareaRef.current;
+    if (!el) return;
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const selected = value.slice(start, end) || placeholderText;
+    const next =
+      value.slice(0, start) + before + selected + after + value.slice(end);
+    onChange(next);
+    requestAnimationFrame(() => {
+      el.focus();
+      const cursor = start + before.length + selected.length;
+      el.setSelectionRange(cursor, cursor);
+    });
+  };
 
   const handleChange = (next: string) => {
     onChange(next);
@@ -289,10 +283,6 @@ export function MarkdownTextarea({
       )}
     </Box>
   );
-}
-
-export function clearMarkdownDraft(draftKey: string) {
-  localStorage.removeItem(draftStorageKey(draftKey));
 }
 
 interface MarkdownEditorActionsProps {

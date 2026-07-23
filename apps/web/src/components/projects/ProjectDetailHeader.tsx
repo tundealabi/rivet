@@ -70,15 +70,19 @@ function InlineNameEditor({
   const [draft, setDraft] = useState(value);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
+  const [prevValue, setPrevValue] = useState(value);
+  if (prevValue !== value) {
+    setPrevValue(value);
     setDraft(value);
-  }, [value]);
+  }
 
-  useEffect(() => {
+  const [prevEditSignal, setPrevEditSignal] = useState(editSignal);
+  if (prevEditSignal !== editSignal) {
+    setPrevEditSignal(editSignal);
     if (editSignal > 0 && editable) {
       setEditing(true);
     }
-  }, [editSignal, editable]);
+  }
 
   useEffect(() => {
     if (editing) {
@@ -172,9 +176,11 @@ function DescriptionEditor({
   const [draft, setDraft] = useState(value);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => {
+  const [prevValue, setPrevValue] = useState(value);
+  if (prevValue !== value) {
+    setPrevValue(value);
     setDraft(value);
-  }, [value]);
+  }
 
   useEffect(() => {
     if (editing) {
@@ -310,12 +316,14 @@ function ChangeKeyDialog({
   const [key, setKey] = useState(currentKey);
   const [error, setError] = useState("");
 
-  useEffect(() => {
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
     if (open) {
       setKey(currentKey);
       setError("");
     }
-  }, [open, currentKey]);
+  }
 
   const handleSave = () => {
     const trimmed = key.trim().toUpperCase();
@@ -405,9 +413,11 @@ function DeleteProjectDialog({
 }: DeleteProjectDialogProps) {
   const [confirmName, setConfirmName] = useState("");
 
-  useEffect(() => {
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
     if (!open) setConfirmName("");
-  }, [open]);
+  }
 
   const matches = confirmName.trim() === projectName;
 

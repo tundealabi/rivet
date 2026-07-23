@@ -1,5 +1,5 @@
 import { Button, Dialog, Field, Input, Stack, Text } from "@chakra-ui/react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { EASE_OUT } from "../issues/issues-motion";
 import type { OrgMember } from "./member-types";
@@ -104,9 +104,11 @@ export function TransferOwnershipDialog({
 }: TransferOwnershipDialogProps) {
   const [confirmName, setConfirmName] = useState("");
 
-  useEffect(() => {
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
     if (!open) setConfirmName("");
-  }, [open]);
+  }
 
   if (!member) return null;
 

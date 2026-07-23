@@ -18,27 +18,30 @@ import toast from "react-hot-toast";
 import { PiArrowLeft, PiExport, PiPlusBold, PiSignOut } from "react-icons/pi";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
-import { AppSidebar, useLogout } from "../components/app/AppSidebar";
+import { AppSidebar } from "../components/app/AppSidebar";
+import { useLogout } from "../components/app/use-logout";
 import {
   applyIssueListPreset,
   filtersFromPreset,
   parseIssueListPreset,
 } from "../components/dashboard/issue-list-presets";
-import { issueDetailPath } from "../components/issues/issue-detail-context";
+import { issueDetailPath } from "../components/issues/issue-detail-actions";
+import {
+  EMPTY_FILTERS,
+  filterIssues,
+  hasActiveFilters,
+  STATUS_OPTIONS,
+} from "../components/issues/issue-filters";
 import {
   canCreateIssues,
   canDeleteIssues,
 } from "../components/issues/issue-permissions";
 import { type Issue } from "../components/issues/issue-types";
 import {
-  EMPTY_FILTERS,
-  filterIssues,
-  hasActiveFilters,
   IssueFilterBar,
   type IssueFilters,
   type IssuePriority,
   type IssueStatus,
-  STATUS_OPTIONS,
 } from "../components/issues/IssueFilterBar";
 import {
   fetchIssuesMock,
