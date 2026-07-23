@@ -1,2 +1,2 @@
 echo "Pulling main branch before push..."
-git pull origin main
+git pull origin dev
