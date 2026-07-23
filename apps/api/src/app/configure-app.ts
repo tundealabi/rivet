@@ -1,6 +1,7 @@
 import { INestApplication, VersioningType } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Reflector } from "@nestjs/core";
+import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import { ZodSerializerInterceptor, ZodValidationPipe } from "nestjs-zod";
 
@@ -20,6 +21,8 @@ export function configureApp(app: INestApplication): void {
   });
 
   app.use(helmet());
+
+  app.use(cookieParser());
 
   app.useGlobalPipes(new ZodValidationPipe());
 

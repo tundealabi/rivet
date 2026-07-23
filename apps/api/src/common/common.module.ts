@@ -3,7 +3,7 @@ import { ConfigModule } from "@nestjs/config";
 import { ThrottlerModule } from "@nestjs/throttler";
 
 import configs from "../config";
-import { HashService } from "./services";
+import { HashService, TokenService } from "./services";
 
 @Module({
   imports: [
@@ -30,7 +30,7 @@ import { HashService } from "./services";
       },
     ]),
   ],
-  providers: [HashService],
-  exports: [HashService],
+  providers: [HashService, TokenService],
+  exports: [HashService, TokenService],
 })
 export class CommonModule {}

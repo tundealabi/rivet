@@ -1,13 +1,11 @@
-import {
-  EmailVerification,
-  EmailVerificationContext,
-  OrganizationRole,
-  User,
-} from "@generated/prisma";
+import { EmailVerificationContext, OrganizationRole } from "@generated/prisma";
 import { Injectable } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { ErrorCode, ErrorMessage } from "@rivet/shared/enums";
 import { DATE_UTILS } from "@rivet/shared/utils";
 
+import { ENV_KEYS } from "@/common/constants";
+import { NodeEnv } from "@/common/enums";
 import { DomainError } from "@/common/errors";
 import { HashService } from "@/common/services";
 import { DatabaseService } from "@/database/database.service";
@@ -25,20 +23,19 @@ import { UserService } from "@/modules/user/user.service";
 import {
   EmailVerificationByEmailInput,
   LoginAuthInput,
+  LogoutAuthInput,
+  PendingSignUpVerification,
+  RefreshTokensAuthInput,
   RegisterAuthInput,
   ResendEmailVerificationInput,
   VerifyEmailInput,
 } from "./auth.types";
 
-interface PendingSignUpVerification {
-  record: EmailVerification;
-  user: User;
-}
-
 @Injectable()
 export class AuthService {
   constructor(
     private readonly authService: AuthModuleService,
+    private readonly configService: ConfigService,
     private readonly databaseService: DatabaseService,
     private readonly emailVerificationService: EmailVerificationService,
     private readonly hashService: HashService,
@@ -71,20 +68,29 @@ export class AuthService {
         ErrorMessage.INVALID_CREDENTIALS
       );
     }
-    if (!user.emailVerifiedAt) {
-      throw new DomainError(
-        "RULE_VIOLATION",
-        ErrorCode.EMAIL_NOT_VERIFIED,
-        ErrorMessage.EMAIL_NOT_VERIFIED
-      );
-    }
+    // if (!user.emailVerifiedAt) {
+    //   throw new DomainError(
+    //     "RULE_VIOLATION",
+    //     ErrorCode.EMAIL_NOT_VERIFIED,
+    //     ErrorMessage.EMAIL_NOT_VERIFIED
+    //   );
+    // }
+
+    const session = await this.authService.createSession({
+      userId: user.id,
+      ipAddress: input.ipAddress,
+      userAgent: input.userAgent,
+    });
 
     const accessToken = await this.authService.generateAccessToken({
+      sessionId: session.id,
       userId: user.id,
     });
-    const refreshToken = await this.authService.generateRefreshToken({
-      userId: user.id,
+
+    const refreshToken = await this.authService.createRefreshToken({
+      sessionId: session.id,
     });
+
     return {
       authTokens: {
         accessToken,
@@ -92,6 +98,19 @@ export class AuthService {
       },
       user,
     };
+  }
+
+  // ------------------------------
+  // Logout
+  // ------------------------------
+
+  async logout(input: LogoutAuthInput) {
+    const refreshToken = await this.authService.findRefreshToken(
+      input.refreshToken
+    );
+    if (refreshToken) {
+      await this.authService.revokeSession(refreshToken.sessionId);
+    }
   }
 
   // ------------------------------
@@ -143,6 +162,72 @@ export class AuthService {
     // TODO: Send email verification code
 
     return user;
+  }
+
+  // ------------------------------
+  // Refresh tokens
+  // ------------------------------
+
+  async refreshTokens(input: RefreshTokensAuthInput) {
+    const refreshTokenRecord = await this.authService.findRefreshToken(
+      input.refreshToken
+    );
+
+    if (!refreshTokenRecord) {
+      throw new DomainError(
+        "INVALID_CREDENTIALS",
+        ErrorCode.INVALID_CREDENTIALS,
+        ErrorMessage.INVALID_CREDENTIALS
+      );
+    }
+    if (refreshTokenRecord.revokedAt) {
+      await this.authService.revokeSession(refreshTokenRecord.sessionId);
+      throw new DomainError(
+        "INVALID_CREDENTIALS",
+        ErrorCode.INVALID_CREDENTIALS,
+        ErrorMessage.INVALID_CREDENTIALS
+      );
+    }
+    if (
+      DATE_UTILS.isPast(DATE_UTILS.fromJSDate(refreshTokenRecord.expiresAt))
+    ) {
+      throw new DomainError(
+        "INVALID_CREDENTIALS",
+        ErrorCode.INVALID_CREDENTIALS,
+        ErrorMessage.INVALID_CREDENTIALS
+      );
+    }
+
+    const sessionRecord = await this.authService.updateActiveSession(
+      refreshTokenRecord.sessionId,
+      { ipAddress: input.ipAddress }
+    );
+
+    if (!sessionRecord) {
+      throw new DomainError(
+        "INVALID_CREDENTIALS",
+        ErrorCode.INVALID_CREDENTIALS,
+        ErrorMessage.INVALID_CREDENTIALS
+      );
+    }
+
+    const accessToken = await this.authService.generateAccessToken({
+      sessionId: sessionRecord.id,
+      userId: sessionRecord.userId,
+    });
+
+    const refreshToken = await this.authService.createRefreshToken({
+      sessionId: sessionRecord.id,
+    });
+
+    await this.authService.revokeRefreshToken(refreshTokenRecord.id);
+
+    return {
+      authTokens: {
+        accessToken,
+        refreshToken,
+      },
+    };
   }
 
   // ------------------------------
@@ -290,6 +375,25 @@ export class AuthService {
     });
 
     return { verified: true };
+  }
+
+  // ------------------------------
+  // Get cookie options
+  // ------------------------------
+
+  getCookieOptions() {
+    return {
+      httpOnly: true,
+      maxAge: DATE_UTILS.addDays(
+        DATE_UTILS.nowUtc(),
+        this.configService.getOrThrow<number>(
+          ENV_KEYS.AUTH_USER_REFRESH_TOKEN_EXPIRES_IN_DAYS
+        )
+      ).toMillis(),
+      path: "/api/v1/auth",
+      sameSite: "strict" as const,
+      secure: process.env.NODE_ENV === NodeEnv.PRODUCTION,
+    };
   }
 
   // ------------------------------

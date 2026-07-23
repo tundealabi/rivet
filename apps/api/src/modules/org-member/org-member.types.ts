@@ -6,7 +6,7 @@ export interface CreateOrgMemberInput {
   userId: string;
 }
 
-export interface FindOrgMemberByUserIdAndOrgIdInput {
+export interface FindByOrgAndUserInput {
   orgId: string;
   userId: string;
 }

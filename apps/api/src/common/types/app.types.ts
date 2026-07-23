@@ -1,6 +1,7 @@
 export type DomainErrorKind =
+  | "CONFLICT"
+  | "FORBIDDEN"
+  | "INVALID_CREDENTIALS"
   | "NOT_FOUND"
   | "RULE_VIOLATION"
-  | "CONFLICT"
-  | "INVALID_CREDENTIALS"
   | "TOO_MANY_REQUESTS";

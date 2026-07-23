@@ -7,8 +7,7 @@ type AuthConfigOptions = {
       secret: string;
     };
     refreshToken: {
-      expiresIn: string;
-      secret: string;
+      expiresInDays: number;
     };
   };
 };
@@ -20,8 +19,10 @@ export default registerAs("auth", (): AuthConfigOptions => ({
       secret: process.env.AUTH_USER_ACCESS_TOKEN_SECRET!,
     },
     refreshToken: {
-      expiresIn: process.env.AUTH_USER_REFRESH_TOKEN_EXPIRES_IN!,
-      secret: process.env.AUTH_USER_REFRESH_TOKEN_SECRET!,
+      expiresInDays: parseInt(
+        process.env.AUTH_USER_REFRESH_TOKEN_EXPIRES_IN_DAYS!,
+        10
+      ),
     },
   },
 }));

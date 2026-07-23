@@ -7,7 +7,10 @@ import { DatabaseService } from "@/database/database.service";
 import { DbOptions } from "@/database/database.types";
 
 import { OrgMemberRepository } from "./org-member.repository";
-import { CreateOrgMemberInput } from "./org-member.types";
+import {
+  CreateOrgMemberInput,
+  FindByOrgAndUserInput,
+} from "./org-member.types";
 
 @Injectable()
 export class OrgMemberService {
@@ -37,5 +40,20 @@ export class OrgMemberService {
       }
       throw err;
     }
+  }
+
+  async findByOrgAndUser(
+    input: FindByOrgAndUserInput,
+    options?: DbOptions
+  ): Promise<OrganizationMember | null> {
+    return this.orgMemberRepository.find(
+      {
+        organizationId_userId: {
+          organizationId: input.orgId,
+          userId: input.userId,
+        },
+      },
+      options
+    );
   }
 }
