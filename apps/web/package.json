@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "pnpm --filter @rivet/shared build",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "typecheck": "tsc -b --noEmit",
