@@ -1,122 +1,115 @@
-import "./App.css";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 
-import { useState } from "react";
+import { CommandPaletteStub } from "./components/app/CommandPaletteStub";
+import { OrgSwitchProgressBar } from "./components/app/OrgSwitchProgressBar";
+import { useOpenOrgSwitcherShortcut } from "./components/app/use-org-switcher-keyboard";
+import { useUserOrganizations } from "./components/app/use-user-organizations";
+import { AUTH_PUBLIC_PATHS } from "./components/auth/auth-public-paths";
+import { AuthGuard } from "./components/auth/AuthGuard";
+import { SessionExpiredListener } from "./components/auth/SessionExpiredListener";
+import { useActiveOrg } from "./components/billing/use-active-org";
+import { isMaintenanceModeEnabled } from "./components/errors/maintenance-mode";
+import { IssueDetailDrawerHost } from "./components/issues/IssueDetailDrawerHost";
+import AccessDeniedPage from "./pages/AccessDeniedPage";
+import BillingPage from "./pages/BillingPage";
+import CreateOrgPage from "./pages/CreateOrgPage";
+import DashboardPage from "./pages/DashboardPage";
+import InvitationsPage from "./pages/InvitationsPage";
+import IssueDetailPage from "./pages/IssueDetailPage";
+import IssuesPage from "./pages/IssuesPage";
+import LandingPage from "./pages/LandingPage";
+import LoginPage from "./pages/LoginPage";
+import MaintenancePage from "./pages/MaintenancePage";
+import MembersPage from "./pages/MembersPage";
+import NotFoundPage from "./pages/NotFoundPage";
+import OnboardingPage from "./pages/OnboardingPage";
+import ProjectDetailPage from "./pages/ProjectDetailPage";
+import ProjectsPage from "./pages/ProjectsPage";
+import RegisterPage from "./pages/RegisterPage";
+import ServerErrorPage from "./pages/ServerErrorPage";
+import SettingsPage from "./pages/SettingsPage";
 
-import heroImg from "./assets/hero.png";
-import reactLogo from "./assets/react.svg";
-import viteLogo from "./assets/vite.svg";
+const PUBLIC_PATHS = AUTH_PUBLIC_PATHS;
+
+function OrgOnboardingGuard({ children }: { children: React.ReactNode }) {
+  const orgsQuery = useUserOrganizations();
+  const { pathname } = useLocation();
+
+  const orgsLoaded = !orgsQuery.isPending && !orgsQuery.isError;
+  const hasOrganizations = (orgsQuery.data?.organizations.length ?? 0) > 0;
+
+  if (orgsLoaded && !hasOrganizations && !PUBLIC_PATHS.has(pathname)) {
+    return <Navigate to="/onboarding" replace />;
+  }
+
+  return children;
+}
+
+function MaintenanceGate({ children }: { children: React.ReactNode }) {
+  const { pathname } = useLocation();
+
+  if (isMaintenanceModeEnabled() && pathname !== "/maintenance") {
+    return <Navigate to="/maintenance" replace />;
+  }
+
+  return children;
+}
+
+function AppRoutes() {
+  const { orgId, isSwitching } = useActiveOrg();
+
+  if (isSwitching) {
+    return null;
+  }
+
+  return (
+    <MaintenanceGate>
+      <AuthGuard>
+        <OrgOnboardingGuard>
+          <Routes key={orgId}>
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/onboarding" element={<OnboardingPage />} />
+            <Route path="/onboarding/create-org" element={<CreateOrgPage />} />
+            <Route path="/invitations" element={<InvitationsPage />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/projects" element={<ProjectsPage />} />
+            <Route path="/projects/:projectId" element={<ProjectDetailPage />}>
+              <Route
+                path="issues/:issueId"
+                element={<IssueDetailDrawerHost />}
+              />
+            </Route>
+            <Route
+              path="/projects/:projectId/issues/:issueId/full"
+              element={<IssueDetailPage />}
+            />
+            <Route path="/issues" element={<IssuesPage />} />
+            <Route path="/members" element={<MembersPage />} />
+            <Route path="/billing" element={<BillingPage />} />
+            <Route path="/settings/*" element={<SettingsPage />} />
+            <Route path="/403" element={<AccessDeniedPage />} />
+            <Route path="/500" element={<ServerErrorPage />} />
+            <Route path="/maintenance" element={<MaintenancePage />} />
+            <Route path="*" element={<NotFoundPage />} />
+          </Routes>
+        </OrgOnboardingGuard>
+      </AuthGuard>
+    </MaintenanceGate>
+  );
+}
 
 function App() {
-  const [count, setCount] = useState(0);
+  const { isSwitching } = useActiveOrg();
+  useOpenOrgSwitcherShortcut();
 
   return (
     <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
+      <SessionExpiredListener />
+      <OrgSwitchProgressBar active={isSwitching} />
+      <AppRoutes />
+      <CommandPaletteStub />
     </>
   );
 }

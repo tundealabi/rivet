@@ -6,6 +6,7 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
+    "prebuild": "pnpm prisma:generate",
     "build": "nest build",
     "start": "nest start",
     "start:dev": "dotenv -e ./src/config/envs/.env.development -- nest start --watch",
