@@ -8,7 +8,7 @@ import {
   Text,
 } from "@chakra-ui/react";
 import { OrganizationRole } from "@rivet/shared";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 
@@ -17,7 +17,7 @@ import { useActiveOrg } from "../billing/use-active-org";
 import { EASE_OUT, fadeIn } from "../issues/issues-motion";
 import { DangerZoneCard } from "./danger-zone-ui";
 import { MOCK_USER_PROFILE } from "./mock-profile-data";
-import { destructiveButtonProps } from "./settings-card-ui";
+import { destructiveButtonProps } from "./settings-card-hooks";
 import {
   SettingsErrorState,
   SettingsSectionSkeleton,
@@ -47,16 +47,17 @@ function LeaveOrganizationDialog({
 }: LeaveOrganizationDialogProps) {
   const [confirmName, setConfirmName] = useState("");
 
-  useEffect(() => {
-    if (!open) setConfirmName("");
-  }, [open]);
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) setConfirmName("");
+    onOpenChange(nextOpen);
+  };
 
   const matches = confirmName.trim() === orgName;
 
   return (
     <Dialog.Root
       open={open}
-      onOpenChange={(e) => onOpenChange(e.open)}
+      onOpenChange={(e) => handleOpenChange(e.open)}
       placement="center"
       role="alertdialog"
     >
@@ -101,7 +102,7 @@ function LeaveOrganizationDialog({
             <Button
               variant="outline"
               borderRadius="control"
-              onClick={() => onOpenChange(false)}
+              onClick={() => handleOpenChange(false)}
             >
               Cancel
             </Button>
@@ -111,7 +112,7 @@ function LeaveOrganizationDialog({
               loading={loading}
               onClick={() => {
                 onConfirm();
-                onOpenChange(false);
+                handleOpenChange(false);
               }}
             >
               Leave organization
@@ -148,16 +149,17 @@ function DeleteAccountDialog({
 }: DeleteAccountDialogProps) {
   const [confirmEmail, setConfirmEmail] = useState("");
 
-  useEffect(() => {
-    if (!open) setConfirmEmail("");
-  }, [open]);
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) setConfirmEmail("");
+    onOpenChange(nextOpen);
+  };
 
   const matches = confirmEmail.trim().toLowerCase() === email.toLowerCase();
 
   return (
     <Dialog.Root
       open={open}
-      onOpenChange={(e) => onOpenChange(e.open)}
+      onOpenChange={(e) => handleOpenChange(e.open)}
       placement="center"
     >
       <Dialog.Backdrop bg="blackAlpha.600" backdropFilter="blur(4px)" />
@@ -214,7 +216,7 @@ function DeleteAccountDialog({
             <Button
               variant="outline"
               borderRadius="control"
-              onClick={() => onOpenChange(false)}
+              onClick={() => handleOpenChange(false)}
             >
               Cancel
             </Button>
@@ -225,7 +227,7 @@ function DeleteAccountDialog({
               loading={loading}
               onClick={() => {
                 onConfirm();
-                onOpenChange(false);
+                handleOpenChange(false);
               }}
             >
               Delete account
@@ -262,7 +264,10 @@ export function DangerZoneSection({
 
   const email = profileQuery.data?.email ?? MOCK_USER_PROFILE.email;
 
-  const memberships = dangerQuery.data?.memberships ?? [];
+  const memberships = useMemo(
+    () => dangerQuery.data?.memberships ?? [],
+    [dangerQuery.data]
+  );
 
   const currentMembership = useMemo(
     () => memberships.find((membership) => membership.orgId === orgId),

@@ -8,7 +8,7 @@ import {
   Stack,
   Text,
 } from "@chakra-ui/react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { PiNutFill } from "react-icons/pi";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
@@ -47,11 +47,12 @@ export default function CreateOrgPage() {
   const [slug, setSlug] = useState("");
   const [slugTouched, setSlugTouched] = useState(false);
 
-  useEffect(() => {
+  const handleNameChange = (value: string) => {
+    setName(value);
     if (!slugTouched) {
-      setSlug(slugifyOrganizationName(name));
+      setSlug(slugifyOrganizationName(value));
     }
-  }, [name, slugTouched]);
+  };
 
   const canSubmit = useMemo(
     () => name.trim().length >= 2 && slug.trim().length >= 2,
@@ -110,7 +111,7 @@ export default function CreateOrgPage() {
               </Field.Label>
               <Input
                 value={name}
-                onChange={(event) => setName(event.target.value)}
+                onChange={(event) => handleNameChange(event.target.value)}
                 placeholder="Acme Inc."
                 borderRadius="control"
                 borderColor="border.default"

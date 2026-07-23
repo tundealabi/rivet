@@ -2,7 +2,7 @@ import { Box, Flex, Stack, Text } from "@chakra-ui/react";
 import { PiDesktop, PiMoon, PiSun } from "react-icons/pi";
 
 import { fadeIn } from "../issues/issues-motion";
-import { type ThemePreference, useColorMode } from "../theme/color-mode";
+import { type ThemePreference, useColorMode } from "../theme/use-color-mode";
 import {
   SettingsSectionHeader,
   SettingsSettingCard,

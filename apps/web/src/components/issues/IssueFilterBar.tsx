@@ -13,7 +13,7 @@ import {
 import { useMemo } from "react";
 import { PiCaretDown, PiMagnifyingGlass, PiX } from "react-icons/pi";
 
-import { useColorModeValue } from "../theme/color-mode";
+import { useColorModeValue } from "../theme/use-color-mode";
 import { EASE_OUT, transition } from "./issues-motion";
 
 export type IssueStatus =

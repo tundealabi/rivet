@@ -1,6 +1,6 @@
 import { Box, Button, Flex, Text } from "@chakra-ui/react";
 import { OrganizationRole } from "@rivet/shared";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { PiArrowLeft } from "react-icons/pi";
 import { useNavigate, useParams } from "react-router-dom";
@@ -60,15 +60,24 @@ export default function IssueDetailPage() {
     [projectId]
   );
 
-  const loadIssue = useCallback(async () => {
-    if (!projectId || !issueId) {
-      setLoadState("not_found");
-      return;
-    }
+  const [prevParams, setPrevParams] = useState({ issueId, projectId });
 
+  if (prevParams.projectId !== projectId || prevParams.issueId !== issueId) {
+    setPrevParams({ issueId, projectId });
+    setIssue(null);
     setLoadState("loading");
-    try {
+  }
+
+  const effectiveLoadState = !projectId || !issueId ? "not_found" : loadState;
+
+  useEffect(() => {
+    if (!projectId || !issueId) return;
+
+    let cancelled = false;
+
+    const load = async () => {
       const project = await fetchProjectMock(projectId);
+      if (cancelled) return;
       if (!project) {
         setIssue(null);
         setLoadState("not_found");
@@ -76,6 +85,7 @@ export default function IssueDetailPage() {
       }
 
       const issues = await fetchIssuesMock(MOCK_ISSUES);
+      if (cancelled) return;
       const match = issues.find(
         (candidate) =>
           candidate.id === issueId && candidate.projectId === projectId
@@ -89,15 +99,19 @@ export default function IssueDetailPage() {
 
       setIssue(match);
       setLoadState("success");
-    } catch {
-      setIssue(null);
-      setLoadState("not_found");
-    }
-  }, [projectId, issueId]);
+    };
 
-  useEffect(() => {
-    void loadIssue();
-  }, [loadIssue]);
+    load().catch(() => {
+      if (!cancelled) {
+        setIssue(null);
+        setLoadState("not_found");
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, issueId]);
 
   const handleUpdate = (id: string, patch: Partial<Issue>) => {
     setIssue((prev) => (prev && prev.id === id ? { ...prev, ...patch } : prev));
@@ -243,7 +257,7 @@ export default function IssueDetailPage() {
           </Button>
         </Flex>
 
-        {loadState === "loading" && (
+        {effectiveLoadState === "loading" && (
           <Box px={{ base: "5", md: "10" }} py="10">
             <Text color="fg.muted" fontSize="sm">
               Loading issue…
@@ -251,13 +265,13 @@ export default function IssueDetailPage() {
           </Box>
         )}
 
-        {loadState === "not_found" && (
+        {effectiveLoadState === "not_found" && (
           <Box px={{ base: "5", md: "10" }} py="8">
             <ProjectNotFoundState />
           </Box>
         )}
 
-        {loadState === "success" && issue && (
+        {effectiveLoadState === "success" && issue && (
           <Box flex="1" overflowY="auto">
             <IssueDetailContent
               issue={issue}

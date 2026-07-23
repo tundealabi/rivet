@@ -1,5 +1,5 @@
 import { Box, Button, Flex, Heading, Text } from "@chakra-ui/react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { PiSignOut } from "react-icons/pi";
 import { useSearchParams } from "react-router-dom";
 
@@ -21,11 +21,13 @@ import {
   canDeleteOrg,
   canViewOrgSettings,
 } from "../components/settings/settings-permissions";
-import type { SettingsSectionId } from "../components/settings/settings-types";
-import { useSettingsUnsavedChangesRegistry } from "../components/settings/settings-unsaved-changes";
 import {
   defaultSettingsSection,
   isOrgSettingsSection,
+} from "../components/settings/settings-sections";
+import type { SettingsSectionId } from "../components/settings/settings-types";
+import { useSettingsUnsavedChangesRegistry } from "../components/settings/settings-unsaved-changes";
+import {
   SettingsMobileNav,
   SettingsNav,
 } from "../components/settings/SettingsNav";
@@ -37,6 +39,19 @@ import {
 } from "../components/settings/use-org-settings-queries";
 import { useUserProfile } from "../components/settings/use-profile-settings-queries";
 import { useAccountDangerContext } from "../components/settings/use-settings-queries";
+
+function parseSettingsSection(value: string | null): SettingsSectionId | null {
+  return value === "profile" ||
+    value === "appearance" ||
+    value === "notifications" ||
+    value === "security" ||
+    value === "danger" ||
+    value === "organization" ||
+    value === "organizationNotifications" ||
+    value === "orgDanger"
+    ? value
+    : null;
+}
 
 function useSectionQueryState(section: SettingsSectionId, orgId: string) {
   const profileQuery = useUserProfile();
@@ -85,54 +100,34 @@ function SettingsPage() {
   const logout = useLogout();
   const { hasUnsavedChanges } = useSettingsUnsavedChangesRegistry();
 
-  const sectionFromQuery = searchParams.get("section");
+  const sectionFromQuery = parseSettingsSection(searchParams.get("section"));
   const initialSection: SettingsSectionId =
-    sectionFromQuery === "profile" ||
-    sectionFromQuery === "appearance" ||
-    sectionFromQuery === "notifications" ||
-    sectionFromQuery === "security" ||
-    sectionFromQuery === "danger" ||
-    sectionFromQuery === "organization" ||
-    sectionFromQuery === "organizationNotifications" ||
-    sectionFromQuery === "orgDanger"
-      ? sectionFromQuery
-      : defaultSettingsSection(showOrgSettings);
+    sectionFromQuery ?? defaultSettingsSection(showOrgSettings);
 
   const [activeSection, setActiveSection] =
     useState<SettingsSectionId>(initialSection);
+  const [prevSectionFromQuery, setPrevSectionFromQuery] =
+    useState(sectionFromQuery);
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
 
   const sectionQuery = useSectionQueryState(activeSection, orgId);
 
-  useEffect(() => {
-    if (
-      sectionFromQuery === "profile" ||
-      sectionFromQuery === "appearance" ||
-      sectionFromQuery === "notifications" ||
-      sectionFromQuery === "security" ||
-      sectionFromQuery === "danger" ||
-      sectionFromQuery === "organization" ||
-      sectionFromQuery === "organizationNotifications" ||
-      sectionFromQuery === "orgDanger"
-    ) {
+  if (prevSectionFromQuery !== sectionFromQuery) {
+    setPrevSectionFromQuery(sectionFromQuery);
+    if (sectionFromQuery) {
       setActiveSection(sectionFromQuery);
     }
-  }, [sectionFromQuery]);
+  }
 
-  useEffect(() => {
-    if (!showOrgSettings && isOrgSettingsSection(activeSection)) {
-      setActiveSection("profile");
-    }
-    if (!showOrgDanger && activeSection === "orgDanger") {
-      setActiveSection(showOrgSettings ? "organization" : "profile");
-    }
-  }, [showOrgSettings, showOrgDanger, activeSection]);
+  if (!showOrgSettings && isOrgSettingsSection(activeSection)) {
+    setActiveSection("profile");
+  } else if (!showOrgDanger && activeSection === "orgDanger") {
+    setActiveSection(showOrgSettings ? "organization" : "profile");
+  }
 
-  useEffect(() => {
-    if (!sectionQuery.isLoading) {
-      setInitialLoadComplete(true);
-    }
-  }, [sectionQuery.isLoading]);
+  if (!sectionQuery.isLoading && !initialLoadComplete) {
+    setInitialLoadComplete(true);
+  }
 
   const showInitialSkeleton = sectionQuery.isLoading && !initialLoadComplete;
 

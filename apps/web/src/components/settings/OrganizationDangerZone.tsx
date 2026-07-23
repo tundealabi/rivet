@@ -1,6 +1,6 @@
 import { Button, Dialog, Field, Input, Stack, Text } from "@chakra-ui/react";
 import { OrganizationRole } from "@rivet/shared";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 
@@ -19,7 +19,7 @@ import {
   useTransferOwnershipMutation,
 } from "../members/use-members-queries";
 import { DangerZoneCard, DeletionInProgressBanner } from "./danger-zone-ui";
-import { destructiveButtonProps } from "./settings-card-ui";
+import { destructiveButtonProps } from "./settings-card-hooks";
 import { canDeleteOrg } from "./settings-permissions";
 import type { OrgDeletionRedirect } from "./settings-types";
 import { useDeleteOrganizationMutation } from "./use-settings-queries";
@@ -133,16 +133,17 @@ function DeleteOrgDialog({
 }: DeleteOrgDialogProps) {
   const [confirmName, setConfirmName] = useState("");
 
-  useEffect(() => {
-    if (!open) setConfirmName("");
-  }, [open]);
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) setConfirmName("");
+    onOpenChange(nextOpen);
+  };
 
   const matches = confirmName.trim() === orgName;
 
   return (
     <Dialog.Root
       open={open}
-      onOpenChange={(e) => onOpenChange(e.open)}
+      onOpenChange={(e) => handleOpenChange(e.open)}
       placement="center"
     >
       <Dialog.Backdrop bg="blackAlpha.600" backdropFilter="blur(4px)" />
@@ -196,7 +197,7 @@ function DeleteOrgDialog({
               variant="outline"
               borderRadius="control"
               disabled={loading}
-              onClick={() => onOpenChange(false)}
+              onClick={() => handleOpenChange(false)}
             >
               Cancel
             </Button>

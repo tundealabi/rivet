@@ -1,13 +1,7 @@
-import { createContext, useContext } from "react";
-
-import type { SettingsSectionId } from "./settings-types";
-
-interface SettingsNavigationContextValue {
-  goToSection: (section: SettingsSectionId) => void;
-}
-
-const SettingsNavigationContext =
-  createContext<SettingsNavigationContextValue | null>(null);
+import {
+  SettingsNavigationContext,
+  type SettingsNavigationContextValue,
+} from "./use-settings-navigation";
 
 export function SettingsNavigationProvider({
   goToSection,
@@ -18,14 +12,4 @@ export function SettingsNavigationProvider({
       {children}
     </SettingsNavigationContext.Provider>
   );
-}
-
-export function useSettingsNavigation() {
-  const ctx = useContext(SettingsNavigationContext);
-  if (!ctx) {
-    throw new Error(
-      "useSettingsNavigation must be used within SettingsNavigationProvider"
-    );
-  }
-  return ctx;
 }

@@ -1,6 +1,7 @@
 import { Box, Flex, Stack, Text } from "@chakra-ui/react";
 
 import { transition } from "../issues/issues-motion";
+import { isOrgSettingsSection } from "./settings-sections";
 import type { SettingsSectionId } from "./settings-types";
 
 interface NavItem {
@@ -26,20 +27,6 @@ const ACCOUNT_ITEMS: NavItem[] = [
   { id: "security", label: "Security" },
   { id: "danger", label: "Danger zone" },
 ];
-
-export function defaultSettingsSection(
-  showOrgGroup: boolean
-): SettingsSectionId {
-  return showOrgGroup ? "organization" : "profile";
-}
-
-export function isOrgSettingsSection(section: SettingsSectionId): boolean {
-  return (
-    section === "organization" ||
-    section === "organizationNotifications" ||
-    section === "orgDanger"
-  );
-}
 
 interface SettingsNavProps {
   value: SettingsSectionId;

@@ -2,7 +2,7 @@ import { Box, Button, Flex, Skeleton, Text } from "@chakra-ui/react";
 import { PiLock, PiWarningCircle } from "react-icons/pi";
 
 import { fadeInUp, scaleIn } from "../issues/issues-motion";
-import { useSettingsNavigation } from "./settings-navigation-context";
+import { useSettingsNavigation } from "./use-settings-navigation";
 
 const shimmerStyle = {
   backgroundImage:

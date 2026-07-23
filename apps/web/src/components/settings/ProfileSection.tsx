@@ -10,17 +10,17 @@ import {
   Stack,
   Text,
 } from "@chakra-ui/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { PiCheck } from "react-icons/pi";
 
 import { EASE_OUT, fadeIn } from "../issues/issues-motion";
 import {
-  SaveButton,
   useClearErrorOnChange,
   useInlineSaveError,
   useSaveSuccessFlash,
-} from "./settings-card-ui";
+} from "./settings-card-hooks";
+import { SaveButton } from "./settings-card-ui";
 import {
   DATE_FORMAT_OPTIONS,
   type DateFormatStyle,
@@ -95,13 +95,15 @@ function strengthBarColor(level: 0 | 1 | 2 | 3): string {
 
 function ProfileNameCard({ profile }: { profile: UserProfile }) {
   const [fullName, setFullName] = useState(profile.fullName);
+  const [prevFullName, setPrevFullName] = useState(profile.fullName);
   const { flashKey, triggerSuccessFlash } = useSaveSuccessFlash();
   const updateName = useUpdateFullNameMutation();
   const { saveError, setSaveError, clearSaveError } = useInlineSaveError();
 
-  useEffect(() => {
+  if (prevFullName !== profile.fullName) {
+    setPrevFullName(profile.fullName);
     setFullName(profile.fullName);
-  }, [profile.fullName]);
+  }
 
   const isDirty = fullName.trim() !== profile.fullName;
   useSettingsUnsavedChanges("profile-name", isDirty);
@@ -380,13 +382,15 @@ function ChangeEmailDialog({
 
 function ProfileEmailCard({ profile }: { profile: UserProfile }) {
   const [email, setEmail] = useState(profile.email);
+  const [prevEmail, setPrevEmail] = useState(profile.email);
   const [dialogOpen, setDialogOpen] = useState(false);
   const requestEmailChange = useRequestEmailChangeMutation();
   const { saveError, setSaveError, clearSaveError } = useInlineSaveError();
 
-  useEffect(() => {
+  if (prevEmail !== profile.email) {
+    setPrevEmail(profile.email);
     setEmail(profile.email);
-  }, [profile.email]);
+  }
 
   const isDirty = email.trim().toLowerCase() !== profile.email.toLowerCase();
   useSettingsUnsavedChanges("profile-email", isDirty);
@@ -610,14 +614,16 @@ function ProfileLocaleCard({ profile }: { profile: UserProfile }) {
   const [dateFormat, setDateFormat] = useState<DateFormatStyle>(
     profile.locale.dateFormat
   );
+  const [prevLocale, setPrevLocale] = useState(profile.locale);
   const { flashKey, triggerSuccessFlash } = useSaveSuccessFlash();
   const updateLocale = useUpdateUserLocaleMutation();
 
-  useEffect(() => {
+  if (prevLocale !== profile.locale) {
+    setPrevLocale(profile.locale);
     setLanguage(profile.locale.language);
     setTimezone(profile.locale.timezone);
     setDateFormat(profile.locale.dateFormat);
-  }, [profile.locale]);
+  }
 
   const isDirty =
     language !== profile.locale.language ||

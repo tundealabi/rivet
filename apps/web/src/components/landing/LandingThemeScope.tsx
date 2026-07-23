@@ -1,7 +1,7 @@
 import { Box } from "@chakra-ui/react";
 import type { ReactNode } from "react";
 
-import { useColorMode } from "../theme/color-mode";
+import { useColorMode } from "../theme/use-color-mode";
 import { DARK_THEME, LIGHT_THEME, palette } from "./palette";
 
 export function LandingThemeScope({ children }: { children: ReactNode }) {

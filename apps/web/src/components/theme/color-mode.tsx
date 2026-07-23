@@ -1,13 +1,12 @@
 import { Button } from "@chakra-ui/react";
-import { ThemeProvider, useTheme } from "next-themes";
-import { useEffect, useState } from "react";
+import { ThemeProvider } from "next-themes";
+import { useEffect } from "react";
 import { PiMoon, PiSun } from "react-icons/pi";
+
+import { useColorMode } from "./use-color-mode";
 
 export const THEME_STORAGE_KEY = "rivet-theme";
 const LEGACY_LANDING_THEME_KEY = "rivet-landing-theme";
-
-export type ThemePreference = "light" | "dark" | "system";
-export type ResolvedColorMode = "light" | "dark";
 
 function migrateLegacyThemePreference() {
   if (typeof window === "undefined") return;
@@ -41,35 +40,6 @@ export function ColorModeProvider({
       {children}
     </ThemeProvider>
   );
-}
-
-export function useColorMode() {
-  const { theme, setTheme, resolvedTheme, systemTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  const colorMode = (resolvedTheme ?? "light") as ResolvedColorMode;
-  const preference = (theme ?? "system") as ThemePreference;
-
-  return {
-    colorMode,
-    preference,
-    systemTheme: systemTheme ?? "light",
-    setColorMode: setTheme,
-    toggleColorMode: () => {
-      setTheme(colorMode === "dark" ? "light" : "dark");
-    },
-    mounted,
-  };
-}
-
-export function useColorModeValue<T>(light: T, dark: T): T {
-  const { colorMode, mounted } = useColorMode();
-  if (!mounted) return light;
-  return colorMode === "dark" ? dark : light;
 }
 
 export interface ColorModeToggleProps {

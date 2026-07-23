@@ -14,11 +14,16 @@ export function SettingsSettingCard({
   flashKey = 0,
 }: SettingsSettingCardProps) {
   const [borderColor, setBorderColor] = useState("border.default");
+  const [prevFlashKey, setPrevFlashKey] = useState(flashKey);
+
+  if (prevFlashKey !== flashKey) {
+    setPrevFlashKey(flashKey);
+    if (flashKey !== 0) setBorderColor("status.success");
+  }
 
   useEffect(() => {
     if (flashKey === 0) return;
 
-    setBorderColor("status.success");
     const fadeTimer = window.setTimeout(
       () => setBorderColor("border.default"),
       60

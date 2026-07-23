@@ -1,7 +1,7 @@
 import { Button } from "@chakra-ui/react";
 import { PiMoon, PiSun } from "react-icons/pi";
 
-import { useColorMode } from "../theme/color-mode";
+import { useColorMode } from "../theme/use-color-mode";
 import { palette } from "./palette";
 
 export function LandingThemeToggle() {

@@ -107,20 +107,22 @@ function NewIssueDialog({
   const [status, setStatus] = useState<IssueStatus>("todo");
   const [titleError, setTitleError] = useState("");
 
-  useEffect(() => {
-    if (!open) return;
+  const [prevOpen, setPrevOpen] = useState(open);
 
-    if (initialProjectId) {
-      const project = projects.find((p) => p.id === initialProjectId) ?? null;
-      setSelectedProject(project);
-      setStep(project ? "form" : "project");
-    } else {
-      setSelectedProject(null);
-      setStep("project");
+  if (prevOpen !== open) {
+    setPrevOpen(open);
+    if (open) {
+      if (initialProjectId) {
+        const project = projects.find((p) => p.id === initialProjectId) ?? null;
+        setSelectedProject(project);
+        setStep(project ? "form" : "project");
+      } else {
+        setSelectedProject(null);
+        setStep("project");
+      }
+      setStatus(initialStatus ?? "todo");
     }
-
-    setStatus(initialStatus ?? "todo");
-  }, [open, initialProjectId, initialStatus, projects]);
+  }
 
   const reset = () => {
     setStep("project");
@@ -445,19 +447,44 @@ export default function IssuesPage() {
   }, []);
 
   useEffect(() => {
-    void loadIssues();
-  }, [loadIssues]);
+    let cancelled = false;
+    fetchIssuesMock(MOCK_ISSUES)
+      .then((data) => {
+        if (cancelled) return;
+        setIssues(data);
+        setLoadState("success");
+      })
+      .catch(() => {
+        if (!cancelled) setLoadState("error");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const [prevFilters, setPrevFilters] = useState(filters);
+  if (prevFilters !== filters) {
+    setPrevFilters(filters);
+    setSelectedIds(new Set());
+    if (loadState === "success") setIsRefetching(true);
+  }
+
+  const [prevListPreset, setPrevListPreset] = useState(listPreset);
+  if (prevListPreset !== listPreset) {
+    setPrevListPreset(listPreset);
+    if (listPreset) setFilters(filtersFromPreset(listPreset));
+  }
 
   useEffect(() => {
     if (loadState !== "success") return;
-    setIsRefetching(true);
-    void refetchIssuesMock().finally(() => setIsRefetching(false));
+    let cancelled = false;
+    void refetchIssuesMock().finally(() => {
+      if (!cancelled) setIsRefetching(false);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [filters, loadState]);
-
-  useEffect(() => {
-    if (!listPreset) return;
-    setFilters(filtersFromPreset(listPreset));
-  }, [listPreset]);
 
   const filteredIssues = useMemo(() => {
     const base = filterIssues(issues, filters, MOCK_CURRENT_USER);
@@ -475,10 +502,6 @@ export default function IssuesPage() {
   );
 
   const filtersActive = hasActiveFilters(filters);
-
-  useEffect(() => {
-    setSelectedIds(new Set());
-  }, [filters]);
 
   const nextIssueNumber = useMemo(
     () => Math.max(0, ...issues.map((i) => i.number)) + 1,

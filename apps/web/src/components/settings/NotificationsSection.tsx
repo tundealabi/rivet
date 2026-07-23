@@ -7,17 +7,16 @@ import {
   Stack,
   Text,
 } from "@chakra-ui/react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { useActiveOrg } from "../billing/use-active-org";
 import { fadeIn } from "../issues/issues-motion";
 import {
-  SaveButton,
-  SavingIndicator,
   useClearErrorOnChange,
   useInlineSaveError,
   useSaveSuccessFlash,
-} from "./settings-card-ui";
+} from "./settings-card-hooks";
+import { SaveButton, SavingIndicator } from "./settings-card-ui";
 import {
   NOTIFICATION_FREQUENCY_OPTIONS,
   type NotificationPreferences,
@@ -90,11 +89,13 @@ function EmailEventsCard({
 }) {
   const { flashKey, triggerSuccessFlash } = useSaveSuccessFlash();
   const [events, setEvents] = useState(preferences.events);
+  const [prevEvents, setPrevEvents] = useState(preferences.events);
   const { saveError, setSaveError, clearSaveError } = useInlineSaveError();
 
-  useEffect(() => {
+  if (prevEvents !== preferences.events) {
+    setPrevEvents(preferences.events);
     setEvents(preferences.events);
-  }, [preferences.events]);
+  }
 
   const isDirty = EVENT_OPTIONS.some(
     ({ key }) => events[key] !== preferences.events[key]
@@ -181,11 +182,13 @@ function EmailFrequencyCard({
 }) {
   const { flashKey, triggerSuccessFlash } = useSaveSuccessFlash();
   const [frequency, setFrequency] = useState(preferences.frequency);
+  const [prevFrequency, setPrevFrequency] = useState(preferences.frequency);
   const { saveError, setSaveError, clearSaveError } = useInlineSaveError();
 
-  useEffect(() => {
+  if (prevFrequency !== preferences.frequency) {
+    setPrevFrequency(preferences.frequency);
     setFrequency(preferences.frequency);
-  }, [preferences.frequency]);
+  }
 
   const isDirty = frequency !== preferences.frequency;
   useSettingsUnsavedChanges("account-notifications-frequency", isDirty);
@@ -281,12 +284,16 @@ function NotificationEmailCard({
   const [useLoginEmail, setUseLoginEmail] = useState(
     preferences.notificationEmail === null
   );
+  const [prevNotificationEmail, setPrevNotificationEmail] = useState(
+    preferences.notificationEmail
+  );
   const { saveError, setSaveError, clearSaveError } = useInlineSaveError();
 
-  useEffect(() => {
+  if (prevNotificationEmail !== preferences.notificationEmail) {
+    setPrevNotificationEmail(preferences.notificationEmail);
     setEmail(preferences.notificationEmail ?? "");
     setUseLoginEmail(preferences.notificationEmail === null);
-  }, [preferences.notificationEmail]);
+  }
 
   const normalizedEmail = email.trim() || null;
   const targetEmail = useLoginEmail ? null : normalizedEmail;

@@ -8,17 +8,17 @@ import {
   Switch,
   Text,
 } from "@chakra-ui/react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import toast from "react-hot-toast";
 
 import { useActiveOrg } from "../billing/use-active-org";
 import { fadeIn } from "../issues/issues-motion";
 import {
-  SaveButton,
   useClearErrorOnChange,
   useInlineSaveError,
   useSaveSuccessFlash,
-} from "./settings-card-ui";
+} from "./settings-card-hooks";
+import { SaveButton } from "./settings-card-ui";
 import type {
   OrgDefaultNotificationEvents,
   OrgNotificationSettings,
@@ -49,11 +49,15 @@ function EmailNotificationsCard({
 }) {
   const { flashKey, triggerSuccessFlash } = useSaveSuccessFlash();
   const [enabled, setEnabled] = useState(settings.emailNotificationsEnabled);
+  const [prevEnabled, setPrevEnabled] = useState(
+    settings.emailNotificationsEnabled
+  );
   const update = useUpdateOrgEmailNotificationsEnabledMutation(orgId);
 
-  useEffect(() => {
+  if (prevEnabled !== settings.emailNotificationsEnabled) {
+    setPrevEnabled(settings.emailNotificationsEnabled);
     setEnabled(settings.emailNotificationsEnabled);
-  }, [settings.emailNotificationsEnabled]);
+  }
 
   const isDirty = enabled !== settings.emailNotificationsEnabled;
   const canSave = isDirty && !update.isPending;
@@ -149,12 +153,14 @@ function DefaultEventsCard({
   settings: OrgNotificationSettings;
 }) {
   const [events, setEvents] = useState(settings.defaultEvents);
+  const [prevEvents, setPrevEvents] = useState(settings.defaultEvents);
   const { flashKey, triggerSuccessFlash } = useSaveSuccessFlash();
   const update = useUpdateOrgDefaultNotificationEventsMutation(orgId);
 
-  useEffect(() => {
+  if (prevEvents !== settings.defaultEvents) {
+    setPrevEvents(settings.defaultEvents);
     setEvents(settings.defaultEvents);
-  }, [settings.defaultEvents]);
+  }
 
   const isDirty =
     events.issueAssigned !== settings.defaultEvents.issueAssigned ||
@@ -241,12 +247,23 @@ function SenderIdentityCard({
   const { flashKey, triggerSuccessFlash } = useSaveSuccessFlash();
   const [senderName, setSenderName] = useState(settings.senderName);
   const [replyToEmail, setReplyToEmail] = useState(settings.replyToEmail ?? "");
+  const [prevSender, setPrevSender] = useState({
+    replyToEmail: settings.replyToEmail,
+    senderName: settings.senderName,
+  });
   const update = useUpdateOrgSenderIdentityMutation(orgId);
 
-  useEffect(() => {
+  if (
+    prevSender.senderName !== settings.senderName ||
+    prevSender.replyToEmail !== settings.replyToEmail
+  ) {
+    setPrevSender({
+      replyToEmail: settings.replyToEmail,
+      senderName: settings.senderName,
+    });
     setSenderName(settings.senderName);
     setReplyToEmail(settings.replyToEmail ?? "");
-  }, [settings.senderName, settings.replyToEmail]);
+  }
 
   const normalizedReplyTo = replyToEmail.trim() || null;
   const isDirty =

@@ -2,7 +2,7 @@ import { Button, Flex, HStack, Link } from "@chakra-ui/react";
 import { useNavigate } from "react-router-dom";
 
 import { isAuthenticated } from "../../auth-api";
-import { useColorMode } from "../theme/color-mode";
+import { useColorMode } from "../theme/use-color-mode";
 import { BrandMark } from "./BrandMark";
 import { scrollToLandingSection } from "./landing-scroll";
 import { LandingThemeToggle } from "./LandingThemeToggle";

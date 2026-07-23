@@ -89,13 +89,14 @@ export default function BillingPage() {
     });
   }, [checkoutParam, checkoutPlan, canView, checkoutSuccess, setSearchParams]);
 
-  useEffect(() => {
-    if (!finalizingPlan || isFinalizing) return;
-    if (billing?.subscription.planTier === finalizingPlan) {
-      setSuccessPlan(finalizingPlan);
-      setFinalizingPlan(null);
-    }
-  }, [finalizingPlan, isFinalizing, billing?.subscription.planTier]);
+  if (
+    finalizingPlan &&
+    !isFinalizing &&
+    billing?.subscription.planTier === finalizingPlan
+  ) {
+    setSuccessPlan(finalizingPlan);
+    setFinalizingPlan(null);
+  }
 
   const openStripePortal = useCallback(async () => {
     setPortalLoading(true);

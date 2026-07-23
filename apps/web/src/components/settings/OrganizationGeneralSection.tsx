@@ -17,11 +17,11 @@ import { useActiveOrg } from "../billing/use-active-org";
 import { fadeIn } from "../issues/issues-motion";
 import { normalizeOrgSlug } from "./settings-api";
 import {
-  SaveButton,
   useClearErrorOnChange,
   useInlineSaveError,
   useSaveSuccessFlash,
-} from "./settings-card-ui";
+} from "./settings-card-hooks";
+import { SaveButton } from "./settings-card-ui";
 import {
   DATE_FORMAT_OPTIONS,
   type DateFormatStyle,
@@ -95,13 +95,15 @@ function OrganizationNameCard({
   settings: OrgGeneralSettings;
 }) {
   const [name, setName] = useState(settings.name);
+  const [prevName, setPrevName] = useState(settings.name);
   const { flashKey, triggerSuccessFlash } = useSaveSuccessFlash();
   const updateName = useUpdateOrgNameMutation(orgId);
   const { saveError, setSaveError, clearSaveError } = useInlineSaveError();
 
-  useEffect(() => {
+  if (prevName !== settings.name) {
+    setPrevName(settings.name);
     setName(settings.name);
-  }, [settings.name]);
+  }
 
   const isDirty = name.trim() !== settings.name;
   useSettingsUnsavedChanges("org-name", isDirty);
@@ -158,8 +160,14 @@ function OrganizationSlugCard({
   settings: OrgGeneralSettings;
 }) {
   const [slug, setSlug] = useState(settings.slug);
+  const [prevSlug, setPrevSlug] = useState(settings.slug);
   const { flashKey, triggerSuccessFlash } = useSaveSuccessFlash();
   const updateSlug = useUpdateOrgSlugMutation(orgId);
+
+  if (prevSlug !== settings.slug) {
+    setPrevSlug(settings.slug);
+    setSlug(settings.slug);
+  }
   const debouncedSlug = useDebouncedValue(normalizeOrgSlug(slug), 400);
   const slugChanged = debouncedSlug !== settings.slug;
   const shouldCheck = slugChanged && debouncedSlug.length >= 2;
@@ -170,10 +178,6 @@ function OrganizationSlugCard({
     settings.slug,
     shouldCheck
   );
-
-  useEffect(() => {
-    setSlug(settings.slug);
-  }, [settings.slug]);
 
   const isDirty = normalizeOrgSlug(slug) !== settings.slug;
   useSettingsUnsavedChanges("org-slug", isDirty);
@@ -470,13 +474,24 @@ function OrganizationLocaleCard({
   const [dateFormat, setDateFormat] = useState<DateFormatStyle>(
     settings.dateFormat
   );
+  const [prevLocale, setPrevLocale] = useState({
+    dateFormat: settings.dateFormat,
+    timezone: settings.timezone,
+  });
   const { flashKey, triggerSuccessFlash } = useSaveSuccessFlash();
   const updateLocale = useUpdateOrgLocaleMutation(orgId);
 
-  useEffect(() => {
+  if (
+    prevLocale.timezone !== settings.timezone ||
+    prevLocale.dateFormat !== settings.dateFormat
+  ) {
+    setPrevLocale({
+      dateFormat: settings.dateFormat,
+      timezone: settings.timezone,
+    });
     setTimezone(settings.timezone);
     setDateFormat(settings.dateFormat);
-  }, [settings.timezone, settings.dateFormat]);
+  }
 
   const isDirty =
     timezone !== settings.timezone || dateFormat !== settings.dateFormat;
