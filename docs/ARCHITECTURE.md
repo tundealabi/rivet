@@ -166,9 +166,76 @@ Compose in `api/` or `use-cases/` - batch-fetch related entities and map, rather
 
 ---
 
-## Repository abstraction
+## Module repositories & services
 
-Interface + Prisma implementation only for modules with branching logic worth unit testing (`issues`, `billing`). Thin CRUD modules use Prisma directly until complexity warrants promotion.
+Each domain module (`modules/<name>/`) has a **repository** (data access) and a **service** (domain API for `api/` and `use-cases/`). Repositories are private to the module — not exported from the Nest module.
+
+### Responsibilities
+
+| Layer          | Owns                                                             | Does not own                                        |
+| -------------- | ---------------------------------------------------------------- | --------------------------------------------------- |
+| **Repository** | Prisma pass-through, `DbOptions` / transaction client resolution | Business rules, HTTP context, domain input shaping  |
+| **Service**    | Query composition, intent-named methods, domain errors           | Wire types, controllers, cross-module orchestration |
+
+**Repository** methods accept full Prisma `*Args` types and forward them to the client. They are generic so return types flow from the args (including `select`, `include`, `take`, `skip`, `orderBy`):
+
+```ts
+async findUnique<T extends OrganizationFindUniqueArgs>(
+  args: T,
+  dbOptions?: DbOptions
+) {
+  const client = this.databaseService.resolveClient(dbOptions);
+  return client.organization.findUnique(args);
+}
+```
+
+Do **not** pin return types to the full model (e.g. `Promise<Organization | null>`) — that breaks when callers pass `select` or `include`.
+
+**Service** methods are named for **intent** (`findByEmail`, `listForUser`, `create`) and compose Prisma args internally. Other layers call the service, not the repository:
+
+```ts
+async create(input: CreateOrgInput, options?: DbOptions): Promise<Organization> {
+  return this.orgRepository.create({ data: { name: input.name } }, options);
+}
+```
+
+Prisma args must not leak above the service layer. `api/` and `use-cases/` never import `*Args` types or call repositories directly.
+
+### Types
+
+| Kind                        | Where                             | Rule                                                                                           |
+| --------------------------- | --------------------------------- | ---------------------------------------------------------------------------------------------- |
+| **Input**                   | `modules/<name>/<name>.types.ts`  | Define when the service boundary is not 1:1 with Prisma (e.g. `CreateOrgInput`)                |
+| **Output**                  | `@generated/prisma`               | Reuse Prisma model types when the shape is unchanged — no parallel `OrgEntity` / `OrgResponse` |
+| **Partial / joined shapes** | Call site or `Prisma.*GetPayload` | Only when `select` / `include` produces a different shape                                      |
+
+### Transactions
+
+`DbOptions` (`{ tx?: TransactionClient }`) is always a **separate** parameter from query args — never mixed into a single `options` bag:
+
+```ts
+repository.create({ data: { … } }, { tx });
+```
+
+Services accept `DbOptions` and pass them through so callers inside `tenantPrisma.run(…)` or `$transaction(…)` can share a transaction client.
+
+### Data-access errors
+
+Keep Prisma error mapping in the **repository** when it is purely a data-access concern (e.g. unique constraint → `null`, not found → `null`). Map to domain errors (`DomainError`, `ValidationError`) in the **service**:
+
+| Concern                                    | Layer      |
+| ------------------------------------------ | ---------- |
+| `P2002` unique violation → `null`          | Repository |
+| `null` → `ValidationError` / `DomainError` | Service    |
+| Email already exists, forbidden, etc.      | Service    |
+
+### Multi-model repositories
+
+When one module owns more than one Prisma model (e.g. `auth`: `Session` + `RefreshToken`), use **prefixed** repository methods (`createSession`, `findUniqueRefreshToken`) but the same `*Args` + generic pattern. Services still expose intent-named methods (`findSessionById`, `createRefreshToken`).
+
+### When to add repository logic beyond pass-through
+
+Stay thin by default. Add non-trivial logic in the repository only when it encapsulates data-access behavior that should not be duplicated — error mapping, multi-step queries, or queries you deliberately do not want repeated across service methods. Everything else stays in the service.
 
 ---
 

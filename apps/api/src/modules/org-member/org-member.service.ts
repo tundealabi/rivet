@@ -24,9 +24,19 @@ export class OrgMemberService {
     options?: DbOptions
   ): Promise<OrganizationMember> {
     try {
-      return await this.orgMemberRepository.create(input, options);
+      return await this.orgMemberRepository.create(
+        {
+          data: {
+            organizationId: input.orgId,
+            role: input.role,
+            userId: input.userId,
+          },
+        },
+        options
+      );
     } catch (err) {
       if (
+        err instanceof Error &&
         this.databaseService.isUniqueConstraintViolationError(
           err,
           "organizationId_userId"
@@ -42,15 +52,14 @@ export class OrgMemberService {
     }
   }
 
-  async findByOrgAndUser(
-    input: FindByOrgAndUserInput,
-    options?: DbOptions
-  ): Promise<OrganizationMember | null> {
-    return this.orgMemberRepository.find(
+  async findByOrgAndUser(input: FindByOrgAndUserInput, options?: DbOptions) {
+    return await this.orgMemberRepository.findUnique(
       {
-        organizationId_userId: {
-          organizationId: input.orgId,
-          userId: input.userId,
+        where: {
+          organizationId_userId: {
+            organizationId: input.orgId,
+            userId: input.userId,
+          },
         },
       },
       options

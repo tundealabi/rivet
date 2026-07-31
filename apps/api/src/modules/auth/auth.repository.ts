@@ -1,16 +1,16 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaClientKnownRequestError } from "@prisma/client/runtime/client";
 
+import { DB_PRISMA_ERROR_CODES } from "@/database/database.contants";
 import { DatabaseService } from "@/database/database.service";
 import { DbOptions } from "@/database/database.types";
-import { RefreshToken, Session } from "@/generated/prisma/client";
 import {
-  RefreshTokenUncheckedCreateInput,
-  RefreshTokenUncheckedUpdateInput,
-  RefreshTokenWhereUniqueInput,
-  SessionUncheckedCreateInput,
-  SessionUncheckedUpdateInput,
-  SessionWhereUniqueInput,
+  RefreshTokenCreateArgs,
+  RefreshTokenFindUniqueArgs,
+  RefreshTokenUpdateArgs,
+  SessionCreateArgs,
+  SessionFindUniqueArgs,
+  SessionUpdateArgs,
 } from "@/generated/prisma/models";
 
 @Injectable()
@@ -21,33 +21,32 @@ export class AuthRepository {
   // Session
   // ------------------------------
 
-  async createSession(
-    input: SessionUncheckedCreateInput,
-    options?: DbOptions
-  ): Promise<Session> {
-    const client = this.databaseService.resolveClient(options);
-    return client.session.create({ data: input });
+  async createSession<T extends SessionCreateArgs>(
+    args: T,
+    dbOptions?: DbOptions
+  ) {
+    const client = this.databaseService.resolveClient(dbOptions);
+    return client.session.create(args);
   }
 
-  async findSession(
-    where: SessionWhereUniqueInput,
-    options?: DbOptions
-  ): Promise<Session | null> {
-    const client = this.databaseService.resolveClient(options);
-    return client.session.findUnique({ where });
+  async findUniqueSession<T extends SessionFindUniqueArgs>(
+    args: T,
+    dbOptions?: DbOptions
+  ) {
+    const client = this.databaseService.resolveClient(dbOptions);
+    return client.session.findUnique(args);
   }
 
-  async updateSession(
-    where: SessionWhereUniqueInput,
-    input: SessionUncheckedUpdateInput,
-    options?: DbOptions
-  ): Promise<Session | null> {
+  async updateSession<T extends SessionUpdateArgs>(
+    args: T,
+    dbOptions?: DbOptions
+  ) {
     try {
-      const client = this.databaseService.resolveClient(options);
-      return client.session.update({ where, data: input });
+      const client = this.databaseService.resolveClient(dbOptions);
+      return await client.session.update(args);
     } catch (err) {
       if (err instanceof PrismaClientKnownRequestError) {
-        if (err.code === "P2025") {
+        if (err.code === DB_PRISMA_ERROR_CODES.NOT_FOUND) {
           return null;
         }
       }
@@ -59,33 +58,32 @@ export class AuthRepository {
   // Refresh Token
   // ------------------------------
 
-  async createRefreshToken(
-    input: RefreshTokenUncheckedCreateInput,
-    options?: DbOptions
-  ): Promise<RefreshToken> {
-    const client = this.databaseService.resolveClient(options);
-    return client.refreshToken.create({ data: input });
+  async createRefreshToken<T extends RefreshTokenCreateArgs>(
+    args: T,
+    dbOptions?: DbOptions
+  ) {
+    const client = this.databaseService.resolveClient(dbOptions);
+    return client.refreshToken.create(args);
   }
 
-  async findRefreshToken(
-    where: RefreshTokenWhereUniqueInput,
-    options?: DbOptions
-  ): Promise<RefreshToken | null> {
-    const client = this.databaseService.resolveClient(options);
-    return client.refreshToken.findUnique({ where });
+  async findUniqueRefreshToken<T extends RefreshTokenFindUniqueArgs>(
+    args: T,
+    dbOptions?: DbOptions
+  ) {
+    const client = this.databaseService.resolveClient(dbOptions);
+    return client.refreshToken.findUnique(args);
   }
 
-  async updateRefreshToken(
-    where: RefreshTokenWhereUniqueInput,
-    input: RefreshTokenUncheckedUpdateInput,
-    options?: DbOptions
-  ): Promise<RefreshToken | null> {
+  async updateRefreshToken<T extends RefreshTokenUpdateArgs>(
+    args: T,
+    dbOptions?: DbOptions
+  ) {
     try {
-      const client = this.databaseService.resolveClient(options);
-      return client.refreshToken.update({ where, data: input });
+      const client = this.databaseService.resolveClient(dbOptions);
+      return await client.refreshToken.update(args);
     } catch (err) {
       if (err instanceof PrismaClientKnownRequestError) {
-        if (err.code === "P2025") {
+        if (err.code === DB_PRISMA_ERROR_CODES.NOT_FOUND) {
           return null;
         }
       }

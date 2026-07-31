@@ -1,71 +1,47 @@
-import { EmailVerification } from "@generated/prisma";
 import { Injectable } from "@nestjs/common";
 
 import { DatabaseService } from "@/database/database.service";
 import { DbOptions } from "@/database/database.types";
 import {
-  EmailVerificationUncheckedCreateInput,
-  EmailVerificationUncheckedUpdateInput,
+  EmailVerificationCreateArgs,
+  EmailVerificationDeleteArgs,
+  EmailVerificationFindUniqueArgs,
+  EmailVerificationUpdateArgs,
 } from "@/generated/prisma/models";
-
-import { FindEmailVerificationInput } from "./email-verification.types";
 
 @Injectable()
 export class EmailVerificationRepository {
   constructor(private readonly databaseService: DatabaseService) {}
 
-  async create(
-    input: EmailVerificationUncheckedCreateInput,
-    options?: DbOptions
-  ): Promise<EmailVerification> {
-    const client = this.databaseService.resolveClient(options);
-    return client.emailVerification.create({ data: input });
+  async create<T extends EmailVerificationCreateArgs>(
+    args: T,
+    dbOptions?: DbOptions
+  ) {
+    const client = this.databaseService.resolveClient(dbOptions);
+    return client.emailVerification.create(args);
   }
 
-  async deleteByUserIdAndContext(
-    input: FindEmailVerificationInput,
-    options?: DbOptions
-  ): Promise<EmailVerification> {
-    const client = this.databaseService.resolveClient(options);
-    return client.emailVerification.delete({
-      where: {
-        userId_context: {
-          context: input.context,
-          userId: input.userId,
-        },
-      },
-    });
+  async delete<T extends EmailVerificationDeleteArgs>(
+    args: T,
+    dbOptions?: DbOptions
+  ) {
+    const client = this.databaseService.resolveClient(dbOptions);
+    return client.emailVerification.delete(args);
   }
 
-  async findByUserIdAndContext(
-    input: FindEmailVerificationInput,
-    options?: DbOptions
-  ): Promise<EmailVerification | null> {
-    const client = this.databaseService.resolveClient(options);
-    return client.emailVerification.findUnique({
-      where: {
-        userId_context: {
-          context: input.context,
-          userId: input.userId,
-        },
-      },
-    });
+  async findUnique<T extends EmailVerificationFindUniqueArgs>(
+    args: T,
+    dbOptions?: DbOptions
+  ) {
+    const client = this.databaseService.resolveClient(dbOptions);
+    return client.emailVerification.findUnique(args);
   }
 
-  async updateByUserIdAndContext(
-    input: FindEmailVerificationInput,
-    data: EmailVerificationUncheckedUpdateInput,
-    options?: DbOptions
-  ): Promise<EmailVerification> {
-    const client = this.databaseService.resolveClient(options);
-    return client.emailVerification.update({
-      where: {
-        userId_context: {
-          context: input.context,
-          userId: input.userId,
-        },
-      },
-      data,
-    });
+  async update<T extends EmailVerificationUpdateArgs>(
+    args: T,
+    dbOptions?: DbOptions
+  ) {
+    const client = this.databaseService.resolveClient(dbOptions);
+    return client.emailVerification.update(args);
   }
 }

@@ -16,7 +16,17 @@ export class ProjectService {
     input: CreateProjectInput,
     options?: DbOptions
   ): Promise<Project> {
-    const project = await this.projectRepository.create(input, options);
+    const project = await this.projectRepository.create(
+      {
+        data: {
+          createdById: input.createdById,
+          description: input.description,
+          name: input.name,
+          organizationId: input.organizationId,
+        },
+      },
+      options
+    );
     if (!project) {
       throw new ValidationError({
         name: [{ message: ErrorMessage.PROJECT_NAME_ALREADY_EXISTS }],
@@ -31,10 +41,12 @@ export class ProjectService {
     options?: DbOptions
   ): Promise<Project | null> {
     return this.projectRepository.update(
-      { id },
       {
-        description: input.description,
-        name: input.name,
+        where: { id },
+        data: {
+          description: input.description,
+          name: input.name,
+        },
       },
       options
     );

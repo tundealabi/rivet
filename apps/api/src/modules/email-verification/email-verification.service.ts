@@ -49,15 +49,22 @@ export class EmailVerificationService {
           ).toJSDate()
         : null;
 
-    return this.emailVerificationRepository.updateByUserIdAndContext(
-      { context, userId },
+    return this.emailVerificationRepository.update(
       {
-        attempts: 0,
-        codeHash: input.codeHash,
-        expiresAt: input.expiresAt,
-        lastSentAt: input.lastSentAt,
-        resendCount: nextResendCount,
-        resendLockedUntil,
+        where: {
+          userId_context: {
+            context,
+            userId,
+          },
+        },
+        data: {
+          attempts: 0,
+          codeHash: input.codeHash,
+          expiresAt: input.expiresAt,
+          lastSentAt: input.lastSentAt,
+          resendCount: nextResendCount,
+          resendLockedUntil,
+        },
       },
       options
     );
@@ -78,13 +85,20 @@ export class EmailVerificationService {
     const resolved = this.resolveResendState(resendState);
     this.assertResendLockNotActive(resolved);
 
-    await this.emailVerificationRepository.updateByUserIdAndContext(
-      { context, userId },
+    await this.emailVerificationRepository.update(
       {
-        attempts: 0,
-        codeHash: input.codeHash,
-        expiresAt: input.expiresAt,
-        lastSentAt: input.lastSentAt,
+        where: {
+          userId_context: {
+            context,
+            userId,
+          },
+        },
+        data: {
+          attempts: 0,
+          codeHash: input.codeHash,
+          expiresAt: input.expiresAt,
+          lastSentAt: input.lastSentAt,
+        },
       },
       options
     );
@@ -108,16 +122,30 @@ export class EmailVerificationService {
     }
 
     if (!input.matchesStoredCode(verifyState.storedCodeSecret)) {
-      await this.emailVerificationRepository.updateByUserIdAndContext(
-        { context, userId },
-        { attempts: { increment: 1 } },
+      await this.emailVerificationRepository.update(
+        {
+          where: {
+            userId_context: {
+              context,
+              userId,
+            },
+          },
+          data: { attempts: { increment: 1 } },
+        },
         options
       );
       throw this.invalidCodeError();
     }
 
-    await this.emailVerificationRepository.deleteByUserIdAndContext(
-      { context, userId },
+    await this.emailVerificationRepository.delete(
+      {
+        where: {
+          userId_context: {
+            context,
+            userId,
+          },
+        },
+      },
       options
     );
   }
@@ -184,11 +212,13 @@ export class EmailVerificationService {
   ): Promise<EmailVerification> {
     return this.emailVerificationRepository.create(
       {
-        codeHash: input.codeHash,
-        context: input.context,
-        expiresAt: input.expiresAt,
-        lastSentAt: input.lastSentAt,
-        userId: input.userId,
+        data: {
+          codeHash: input.codeHash,
+          context: input.context,
+          expiresAt: input.expiresAt,
+          lastSentAt: input.lastSentAt,
+          userId: input.userId,
+        },
       },
       options
     );
@@ -199,8 +229,15 @@ export class EmailVerificationService {
     context: EmailVerificationContext,
     options?: DbOptions
   ): Promise<EmailVerification | null> {
-    return this.emailVerificationRepository.findByUserIdAndContext(
-      { userId, context },
+    return await this.emailVerificationRepository.findUnique(
+      {
+        where: {
+          userId_context: {
+            context,
+            userId,
+          },
+        },
+      },
       options
     );
   }

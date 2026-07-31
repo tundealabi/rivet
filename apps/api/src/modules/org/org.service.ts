@@ -14,6 +14,6 @@ export class OrgService {
     input: CreateOrgInput,
     options?: DbOptions
   ): Promise<Organization> {
-    return this.orgRepository.create(input, options);
+    return this.orgRepository.create({ data: { name: input.name } }, options);
   }
 }

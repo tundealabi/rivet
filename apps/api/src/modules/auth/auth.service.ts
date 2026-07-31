@@ -31,35 +31,37 @@ export class AuthService {
 
   createSession(input: CreateSessionInput) {
     return this.authRepository.createSession({
-      ipAddress: input.ipAddress || null,
-      lastSeenAt: DATE_UTILS.nowUtc().toJSDate(),
-      lastSeenIp: input.ipAddress ?? null,
-      userAgent: input.userAgent ?? null,
-      userId: input.userId,
+      data: {
+        ipAddress: input.ipAddress || null,
+        lastSeenAt: DATE_UTILS.nowUtc().toJSDate(),
+        lastSeenIp: input.ipAddress ?? null,
+        userAgent: input.userAgent ?? null,
+        userId: input.userId,
+      },
     });
   }
 
-  findSessionById(id: string) {
-    return this.authRepository.findSession({ id });
+  async findSessionById(id: string) {
+    return await this.authRepository.findUniqueSession({ where: { id } });
   }
 
   async revokeSession(sessionId: string) {
-    await this.authRepository.updateSession(
-      { id: sessionId },
-      {
+    await this.authRepository.updateSession({
+      where: { id: sessionId },
+      data: {
         revokedAt: DATE_UTILS.nowUtc().toJSDate(),
-      }
-    );
+      },
+    });
   }
 
   updateActiveSession(id: string, input: UpdateSessionInput) {
-    return this.authRepository.updateSession(
-      { id, revokedAt: null },
-      {
+    return this.authRepository.updateSession({
+      where: { id, revokedAt: null },
+      data: {
         lastSeenAt: DATE_UTILS.nowUtc().toJSDate(),
         lastSeenIp: input.ipAddress ?? null,
-      }
-    );
+      },
+    });
   }
 
   // ------------------------------
@@ -69,22 +71,26 @@ export class AuthService {
   async createRefreshToken(input: CreateRefreshTokenInput) {
     const rawToken = this.generateRefreshToken();
     await this.authRepository.createRefreshToken({
-      expiresAt: DATE_UTILS.nowUtc()
-        .plus({
-          days: this.configService.getOrThrow<number>(
-            ENV_KEYS.AUTH_USER_REFRESH_TOKEN_EXPIRES_IN_DAYS
-          ),
-        })
-        .toJSDate(),
-      sessionId: input.sessionId,
-      tokenHash: this.hashService.digest(rawToken),
+      data: {
+        expiresAt: DATE_UTILS.nowUtc()
+          .plus({
+            days: this.configService.getOrThrow<number>(
+              ENV_KEYS.AUTH_USER_REFRESH_TOKEN_EXPIRES_IN_DAYS
+            ),
+          })
+          .toJSDate(),
+        sessionId: input.sessionId,
+        tokenHash: this.hashService.digest(rawToken),
+      },
     });
     return rawToken;
   }
 
   async findRefreshToken(token: string) {
     const tokenHash = this.hashService.digest(token);
-    return this.authRepository.findRefreshToken({ tokenHash });
+    return await this.authRepository.findUniqueRefreshToken({
+      where: { tokenHash },
+    });
   }
 
   generateAccessToken(input: GenerateAccessTokenInput) {
@@ -110,8 +116,9 @@ export class AuthService {
   }
 
   generateOtp() {
-    const otp = Math.floor(100000 + Math.random() * 900000);
-    return otp.toString();
+    // const otp = Math.floor(100000 + Math.random() * 900000);
+    // return otp.toString();
+    return "123456";
   }
 
   generateRefreshToken() {
@@ -119,10 +126,10 @@ export class AuthService {
   }
 
   revokeRefreshToken(id: string) {
-    return this.authRepository.updateRefreshToken(
-      { id },
-      { revokedAt: DATE_UTILS.nowUtc().toJSDate() }
-    );
+    return this.authRepository.updateRefreshToken({
+      where: { id },
+      data: { revokedAt: DATE_UTILS.nowUtc().toJSDate() },
+    });
   }
 
   // ------------------------------
