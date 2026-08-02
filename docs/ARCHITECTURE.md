@@ -2,6 +2,8 @@
 
 Architecture decisions for the Rivet codebase. Living document - update as implementation reveals new constraints.
 
+For point-in-time decision history, see [`docs/adr/`](./adr/README.md) (use [`template.md`](./adr/template.md) to add a new record).
+
 ---
 
 ## Stack
@@ -76,7 +78,7 @@ Promote logic into `use-cases/` only when a **second real call site** needs the 
 
 Two layers:
 
-1. **Application:** JWT carries `activeOrgId`; guard validates membership; every query helper requires `org_id`.
+1. **Application:** Access JWT identifies the user (`sub`, `sid`). Tenant routes require `x-org-id`; the API validates membership before tenant work. Every query helper requires `org_id`.
 2. **Database:** RLS on tenant tables - `org_id = current_setting('app.current_org')`.
 
 Every tenant-scoped DB operation runs through **`TenantPrismaService.run(orgId, fn)`**:
@@ -105,16 +107,20 @@ tenantPrisma.run(orgId, async (tx) => { /* DB work */ })
 
 ## Authentication
 
-Short-lived **access JWT** (Bearer, ~15–30 min) + long-lived **refresh token** (httpOnly cookie, ~7–30 days).
+Short-lived **access JWT** (Bearer, ~15 min) + long-lived **refresh token** (`httpOnly` cookie, ~7 days). Full rationale: [ADR-0001](./adr/0001-dual-token-auth-with-httponly-refresh-cookie.md).
 
-| Token      | Storage         | Claims / notes                                                               |
-| ---------- | --------------- | ---------------------------------------------------------------------------- |
-| Access JWT | Client memory   | `sub`, `activeOrgId`, `role`                                                 |
-| Refresh    | httpOnly cookie | Hash stored in `refresh_tokens` table; rotated on refresh; revoked on logout |
+| Token      | Storage               | Notes                                                                                                      |
+| ---------- | --------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Access JWT | Client (localStorage) | Claims: `sub` (user), `sid` (session). Sent as `Authorization: Bearer`.                                    |
+| Refresh    | `httpOnly` cookie     | Opaque token; hash in `refresh_tokens`; rotated on refresh; revoked on logout. **Never returned in JSON.** |
 
-**Org switcher:** `POST /auth/switch-org` issues a new access JWT with updated `activeOrgId` and `role`; refresh session unchanged.
+**Deployment:** Web (Vercel) and API (Render) are cross-origin. Refresh cookie uses `SameSite=None; Secure` in production. CORS allows credentialed requests from allowlisted frontend origins.
 
-**Not in v1:** OAuth, MFA, session admin UI.
+**Org context:** Tenant-scoped routes require the **`x-org-id` header**. The API validates the authenticated user belongs to that org (membership check) before tenant logic runs. Org switch updates client state and subsequent headers — no new access token.
+
+**Client contract (target):** Login/refresh/logout use `fetch` with `credentials: 'include'`. Access token in localStorage; refresh token never in JS.
+
+**Not in v1:** OAuth, MFA, session admin UI, BFF for token storage.
 
 ---
 

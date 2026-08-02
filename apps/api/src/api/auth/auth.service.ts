@@ -382,6 +382,7 @@ export class AuthService {
   // ------------------------------
 
   getCookieOptions() {
+    const isProduction = process.env.NODE_ENV === NodeEnv.PRODUCTION;
     return {
       httpOnly: true,
       maxAge: DATE_UTILS.addDays(
@@ -391,8 +392,8 @@ export class AuthService {
         )
       ).toMillis(),
       path: "/api/v1/auth",
-      sameSite: "strict" as const,
-      secure: process.env.NODE_ENV === NodeEnv.PRODUCTION,
+      sameSite: isProduction ? ("none" as const) : ("lax" as const),
+      secure: isProduction,
     };
   }
 
