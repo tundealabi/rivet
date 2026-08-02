@@ -1,4 +1,4 @@
 export class AuthJwtUser {
-  sid: string;
-  sub: string;
+  sid!: string;
+  sub!: string;
 }

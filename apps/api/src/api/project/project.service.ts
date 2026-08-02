@@ -62,6 +62,7 @@ export class ProjectService {
       createdAt: project.createdAt.toISOString(),
       description: project.description,
       id: project.id,
+      key: project.key,
       name: project.name,
     };
   }

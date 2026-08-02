@@ -4,6 +4,7 @@ import { DatabaseService } from "@/database/database.service";
 import { DbOptions } from "@/database/database.types";
 import {
   OrganizationMemberCreateArgs,
+  OrganizationMemberFindManyArgs,
   OrganizationMemberFindUniqueArgs,
 } from "@/generated/prisma/models";
 
@@ -25,5 +26,13 @@ export class OrgMemberRepository {
   ) {
     const client = this.databaseService.resolveClient(dbOptions);
     return client.organizationMember.findUnique(args);
+  }
+
+  async findMany<T extends OrganizationMemberFindManyArgs>(
+    args?: T,
+    dbOptions?: DbOptions
+  ) {
+    const client = this.databaseService.resolveClient(dbOptions);
+    return client.organizationMember.findMany(args);
   }
 }

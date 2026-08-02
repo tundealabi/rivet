@@ -18,11 +18,11 @@ export interface ApiValidationErrorWire {
 export type ApiErrorWire = ApiGeneralErrorWire | ApiValidationErrorWire;
 
 export interface ApiPaginationWire {
-  page: number;
   limit: number;
-  totalCount: number;
-  totalPages: number;
-  cursor?: string | null;
+  page?: number;
+  totalCount?: number;
+  totalPages?: number;
+  nextCursor?: string | null;
 }
 
 export interface ApiEnvelopeBase {

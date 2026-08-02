@@ -15,17 +15,8 @@ export class ProjectRepository {
   constructor(private readonly databaseService: DatabaseService) {}
 
   async create<T extends ProjectCreateArgs>(args: T, dbOptions?: DbOptions) {
-    try {
-      const client = this.databaseService.resolveClient(dbOptions);
-      return await client.project.create(args);
-    } catch (err) {
-      if (err instanceof PrismaClientKnownRequestError) {
-        if (err.code === DB_PRISMA_ERROR_CODES.UNIQUE_CONSTRAINT_VIOLATION) {
-          return null;
-        }
-      }
-      throw err;
-    }
+    const client = this.databaseService.resolveClient(dbOptions);
+    return client.project.create(args);
   }
 
   async findUnique<T extends ProjectFindUniqueArgs>(

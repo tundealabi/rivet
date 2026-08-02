@@ -52,6 +52,7 @@ export class ProjectController {
     return this.service.createProject({
       createdById: user.sub,
       description: dto.description,
+      key: dto.key,
       name: dto.name,
       organizationId,
     });
