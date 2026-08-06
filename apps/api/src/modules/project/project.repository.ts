@@ -6,6 +6,8 @@ import { DatabaseService } from "@/database/database.service";
 import { DbOptions } from "@/database/database.types";
 import {
   ProjectCreateArgs,
+  ProjectFindFirstArgs,
+  ProjectFindManyArgs,
   ProjectFindUniqueArgs,
   ProjectUpdateArgs,
 } from "@/generated/prisma/models";
@@ -25,6 +27,22 @@ export class ProjectRepository {
   ) {
     const client = this.databaseService.resolveClient(dbOptions);
     return client.project.findUnique(args);
+  }
+
+  async findMany<T extends ProjectFindManyArgs>(
+    args?: T,
+    dbOptions?: DbOptions
+  ) {
+    const client = this.databaseService.resolveClient(dbOptions);
+    return client.project.findMany(args);
+  }
+
+  async findFirst<T extends ProjectFindFirstArgs>(
+    args: T,
+    dbOptions?: DbOptions
+  ) {
+    const client = this.databaseService.resolveClient(dbOptions);
+    return client.project.findFirst(args);
   }
 
   async update<T extends ProjectUpdateArgs>(args: T, dbOptions?: DbOptions) {

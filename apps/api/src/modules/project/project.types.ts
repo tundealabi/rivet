@@ -6,6 +6,15 @@ export interface CreateProjectInput {
   organizationId: string;
 }
 
+export interface ListProjectsForOrganizationInput {
+  organizationId: string;
+}
+
+export interface FindProjectByIdInput {
+  id: string;
+  organizationId: string;
+}
+
 export interface UpdateProjectInput {
   description?: string;
   name?: string;

@@ -32,6 +32,64 @@ export class ProjectService {
     return this.toResponse(project);
   }
 
+  async getProject(
+    id: string,
+    organizationId: string,
+    userId: string
+  ): Promise<ProjectResponseWire> {
+    const orgMember = await this.orgMemberService.findByOrgAndUser({
+      orgId: organizationId,
+      userId,
+    });
+
+    if (!orgMember) {
+      throw new DomainError(
+        "FORBIDDEN",
+        ErrorCode.FORBIDDEN,
+        ErrorMessage.FORBIDDEN
+      );
+    }
+
+    const project = await this.projectService.findById({
+      id,
+      organizationId,
+    });
+
+    if (!project) {
+      throw new DomainError(
+        "NOT_FOUND",
+        ErrorCode.NOT_FOUND,
+        ErrorMessage.NOT_FOUND
+      );
+    }
+
+    return this.toResponse(project);
+  }
+
+  async listProjects(
+    organizationId: string,
+    userId: string
+  ): Promise<ProjectResponseWire[]> {
+    const orgMember = await this.orgMemberService.findByOrgAndUser({
+      orgId: organizationId,
+      userId,
+    });
+
+    if (!orgMember) {
+      throw new DomainError(
+        "FORBIDDEN",
+        ErrorCode.FORBIDDEN,
+        ErrorMessage.FORBIDDEN
+      );
+    }
+
+    const projects = await this.projectService.listForOrganization({
+      organizationId,
+    });
+
+    return projects.map((project) => this.toResponse(project));
+  }
+
   async updateProject(input: UpdateProjectInput): Promise<ProjectResponseWire> {
     const orgMember = await this.orgMemberService.findByOrgAndUser({
       orgId: input.organizationId,
