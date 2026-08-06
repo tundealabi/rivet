@@ -12,10 +12,10 @@ import {
 
 import {
   ApiEnvelopeResponse,
-  ApiOrgId,
   ApiOrgIdHeader,
   ApiRequestUser,
 } from "@/common/decorators";
+import { OrgMemberGuard } from "@/common/guards";
 import { AuthJwtUser } from "@/modules/auth/auth.entities";
 import { AuthUserJwtGuard } from "@/modules/auth/auth.guard";
 
@@ -27,7 +27,7 @@ import {
 import { ProjectService } from "./project.service";
 
 @Controller("projects")
-@UseGuards(AuthUserJwtGuard)
+@UseGuards(AuthUserJwtGuard, OrgMemberGuard)
 @ApiOrgIdHeader()
 export class ProjectController {
   constructor(private readonly service: ProjectService) {}
@@ -46,7 +46,6 @@ export class ProjectController {
     summary: "Create a project",
   })
   create(
-    @ApiOrgId() organizationId: string,
     @ApiRequestUser() user: AuthJwtUser,
     @Body() dto: CreateProjectRequestDto
   ): Promise<ProjectResponseDto> {
@@ -55,7 +54,6 @@ export class ProjectController {
       description: dto.description,
       key: dto.key,
       name: dto.name,
-      organizationId,
     });
   }
 
@@ -73,11 +71,8 @@ export class ProjectController {
     isArray: true,
     summary: "List organization projects",
   })
-  list(
-    @ApiOrgId() organizationId: string,
-    @ApiRequestUser() user: AuthJwtUser
-  ) {
-    return this.service.listProjects(organizationId, user.sub);
+  list() {
+    return this.service.listProjects();
   }
 
   @Get(":id")
@@ -97,12 +92,8 @@ export class ProjectController {
     httpStatus: HttpStatus.OK,
     summary: "Get a project",
   })
-  get(
-    @ApiOrgId() organizationId: string,
-    @ApiRequestUser() user: AuthJwtUser,
-    @Param("id", ParseUUIDPipe) id: string
-  ): Promise<ProjectResponseDto> {
-    return this.service.getProject(id, organizationId, user.sub);
+  get(@Param("id", ParseUUIDPipe) id: string): Promise<ProjectResponseDto> {
+    return this.service.getProject(id);
   }
 
   @Patch(":id")
@@ -123,8 +114,6 @@ export class ProjectController {
     summary: "Update a project",
   })
   update(
-    @ApiOrgId() organizationId: string,
-    @ApiRequestUser() user: AuthJwtUser,
     @Param("id", ParseUUIDPipe) id: string,
     @Body() dto: UpdateProjectRequestDto
   ): Promise<ProjectResponseDto> {
@@ -132,8 +121,6 @@ export class ProjectController {
       description: dto.description,
       id,
       name: dto.name,
-      organizationId,
-      userId: user.sub,
     });
   }
 }

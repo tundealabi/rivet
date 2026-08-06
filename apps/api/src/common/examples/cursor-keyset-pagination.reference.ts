@@ -2,8 +2,8 @@
  * Reference implementation for cursor (keyset) pagination.
  *
  * Not imported by the application — copy and adapt when adding a paginated list
- * endpoint. See docs/ARCHITECTURE.md § Pagination and PaginationHelper in
- * common/helpers/pagination.ts.
+ * endpoint. See docs/ARCHITECTURE.md § Pagination and Helpers in
+ * common/helpers/index.ts.
  *
  * Cursor fields must match orderBy exactly. This example uses membership
  * createdAt + id (stable, same-table sort).
@@ -14,7 +14,7 @@ import { CURSOR_PAGINATION_MAX_LIMIT } from "@rivet/shared/constants";
 import { z, ZodError } from "zod";
 
 import { ValidationError } from "@/common/errors";
-import { PaginationHelper } from "@/common/helpers";
+import { Helpers } from "@/common/helpers";
 import type { PaginatedResult } from "@/common/types";
 
 // --- Wire query DTO (api/<feature>/dto/) ------------------------------------
@@ -136,7 +136,7 @@ export function exampleDecodeCursor(
   }
 
   try {
-    return PaginationHelper.decodeCursor(cursor, ExampleListCursorSchema);
+    return Helpers.decodePaginationCursor(cursor, ExampleListCursorSchema);
   } catch (err) {
     if (err instanceof ZodError || err instanceof SyntaxError) {
       throw new ValidationError({
@@ -151,11 +151,11 @@ export function exampleToPaginatedApiResult<T>(
   result: ExampleListModuleResult<T>,
   pagination: CursorPaginationInput
 ): PaginatedResult<T> {
-  return PaginationHelper.toCursorPaginatedResult(
+  return Helpers.toCursorPaginatedResult(
     {
       items: result.items,
       nextCursor: result.next
-        ? PaginationHelper.encodeCursor(result.next)
+        ? Helpers.encodePaginationCursor(result.next)
         : null,
     },
     pagination

@@ -9,11 +9,11 @@ import { z } from "zod";
 
 import type { PaginatedResult } from "@/common/types";
 
-function encodeCursor(payload: unknown): string {
+function encodePaginationCursor(payload: unknown): string {
   return Buffer.from(JSON.stringify(payload)).toString("base64");
 }
 
-function decodeCursor<T>(cursor: string, schema: z.ZodType<T>): T {
+function decodePaginationCursor<T>(cursor: string, schema: z.ZodType<T>): T {
   const decoded = JSON.parse(
     Buffer.from(cursor, "base64").toString("utf8")
   ) as unknown;
@@ -58,9 +58,9 @@ function toOffsetPaginatedResult<T>(
   };
 }
 
-export const PaginationHelper = {
-  encodeCursor,
-  decodeCursor,
+export {
+  decodePaginationCursor,
+  encodePaginationCursor,
   toCursorPaginatedResult,
   toOffsetPaginatedResult,
 };

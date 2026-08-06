@@ -3,8 +3,8 @@ import type { ProjectResponseWire } from "@rivet/shared/api";
 import { ErrorCode, ErrorMessage } from "@rivet/shared/enums";
 
 import { DomainError } from "@/common/errors";
+import { TenantContextService } from "@/common/services";
 import { Project } from "@/generated/prisma/client";
-import { OrgMemberService } from "@/modules/org-member/org-member.service";
 import { ProjectService as ProjectModuleService } from "@/modules/project/project.service";
 
 import { CreateProjectInput, UpdateProjectInput } from "./project.types";
@@ -12,47 +12,22 @@ import { CreateProjectInput, UpdateProjectInput } from "./project.types";
 @Injectable()
 export class ProjectService {
   constructor(
-    private readonly orgMemberService: OrgMemberService,
-    private readonly projectService: ProjectModuleService
+    private readonly projectService: ProjectModuleService,
+    private readonly tenantContext: TenantContextService
   ) {}
 
   async createProject(input: CreateProjectInput): Promise<ProjectResponseWire> {
-    const orgMember = await this.orgMemberService.findByOrgAndUser({
-      orgId: input.organizationId,
-      userId: input.createdById,
+    const project = await this.projectService.create({
+      ...input,
+      organizationId: this.tenantContext.orgId,
     });
-    if (!orgMember) {
-      throw new DomainError(
-        "FORBIDDEN",
-        ErrorCode.FORBIDDEN,
-        ErrorMessage.FORBIDDEN
-      );
-    }
-    const project = await this.projectService.create(input);
     return this.toResponse(project);
   }
 
-  async getProject(
-    id: string,
-    organizationId: string,
-    userId: string
-  ): Promise<ProjectResponseWire> {
-    const orgMember = await this.orgMemberService.findByOrgAndUser({
-      orgId: organizationId,
-      userId,
-    });
-
-    if (!orgMember) {
-      throw new DomainError(
-        "FORBIDDEN",
-        ErrorCode.FORBIDDEN,
-        ErrorMessage.FORBIDDEN
-      );
-    }
-
+  async getProject(id: string): Promise<ProjectResponseWire> {
     const project = await this.projectService.findById({
       id,
-      organizationId,
+      organizationId: this.tenantContext.orgId,
     });
 
     if (!project) {
@@ -66,43 +41,15 @@ export class ProjectService {
     return this.toResponse(project);
   }
 
-  async listProjects(
-    organizationId: string,
-    userId: string
-  ): Promise<ProjectResponseWire[]> {
-    const orgMember = await this.orgMemberService.findByOrgAndUser({
-      orgId: organizationId,
-      userId,
-    });
-
-    if (!orgMember) {
-      throw new DomainError(
-        "FORBIDDEN",
-        ErrorCode.FORBIDDEN,
-        ErrorMessage.FORBIDDEN
-      );
-    }
-
+  async listProjects(): Promise<ProjectResponseWire[]> {
     const projects = await this.projectService.listForOrganization({
-      organizationId,
+      organizationId: this.tenantContext.orgId,
     });
 
     return projects.map((project) => this.toResponse(project));
   }
 
   async updateProject(input: UpdateProjectInput): Promise<ProjectResponseWire> {
-    const orgMember = await this.orgMemberService.findByOrgAndUser({
-      orgId: input.organizationId,
-      userId: input.userId,
-    });
-
-    if (!orgMember) {
-      throw new DomainError(
-        "FORBIDDEN",
-        ErrorCode.FORBIDDEN,
-        ErrorMessage.FORBIDDEN
-      );
-    }
     const project = await this.projectService.update(input.id, input);
 
     if (!project) {

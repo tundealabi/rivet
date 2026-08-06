@@ -1,12 +1,12 @@
 import { MiddlewareConsumer, Module, NestModule } from "@nestjs/common";
 
 import { ApiModule } from "@/api/api.module";
-import { CommonModule } from "@/common/common.module";
 import {
   HttpRequestLoggerMiddleware,
   RequestIdMiddleware,
   TrimRequestBodyMiddleware,
 } from "@/common/middleware";
+import { CommonModule } from "@/common/modules";
 
 import { AppController } from "./app.controller";
 import { AppService } from "./app.service";
