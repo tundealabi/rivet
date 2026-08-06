@@ -1,5 +1,11 @@
-import { Prisma } from "@generated/prisma";
+import { Prisma, PrismaClient } from "@generated/prisma";
+
+import type { AppPrismaClientLike } from "./tenant-prisma.extension";
 
 export interface DbOptions {
-  tx?: Prisma.TransactionClient;
+  tx?: AppPrismaClientLike;
 }
+
+export type PlainPrismaClient = PrismaClient | Prisma.TransactionClient;
+
+export type { Prisma };

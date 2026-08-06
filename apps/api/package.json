@@ -20,7 +20,7 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "dotenv -e ./src/config/envs/.env.development -- jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
@@ -53,6 +53,7 @@
     "@nestjs/testing": "^11.0.1",
     "@swc/cli": "^0.7.10",
     "@swc/core": "^1.15.8",
+    "@swc/jest": "^0.2.39",
     "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.0",
     "@types/express-serve-static-core": "^5.0.6",

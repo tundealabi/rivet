@@ -8,14 +8,14 @@ For point-in-time decision history, see [`docs/adr/`](./adr/README.md) (use [`te
 
 ## Stack
 
-- **API:** NestJS, Prisma, PostgreSQL with Row-Level Security (RLS)
+- **API:** NestJS, Prisma, PostgreSQL (shared; RLS deferred — see [ADR-0002](./adr/0002-application-layer-tenant-isolation.md))
 - **Web:** Vite, React, TanStack Query
 - **Shared:** `@rivet/shared` - wire types, API envelope, Zod/constants (framework-agnostic)
 - **Jobs:** BullMQ + Redis
 - **Billing:** Stripe (test mode in development)
 - **Observability:** structured logs, Prometheus/Grafana, OpenTelemetry traces, alerts
 
-PostgreSQL was chosen over document stores because **RLS** enforces tenant isolation at the database layer, not only in application code. Prisma was chosen for transaction ergonomics, schema-first workflow, and readable SQL when debugging RLS.
+PostgreSQL was chosen for relational data and mature tooling. Prisma was chosen for transaction ergonomics, schema-first workflow, and Client extensions for tenant query scoping. **Postgres RLS** is a documented future backstop when compliance or multiple DB consumers require database-enforced isolation ([ADR-0002](./adr/0002-application-layer-tenant-isolation.md)).
 
 ---
 
@@ -53,7 +53,7 @@ use-cases/<name>/      Multi-domain flows used from 2+ entry points (HTTP-unawar
 modules/<name>/        Domain services + private repositories (one domain each)
    │
    ▼
-PostgreSQL (RLS)
+PostgreSQL
 ```
 
 `api/` is organized by **feature** (`auth`, `org`, `projects`, `issues`, `billing`, `webhooks`), not by actor type - org members differ by **role**, not by separate app surfaces.
@@ -62,7 +62,7 @@ PostgreSQL (RLS)
 
 - **`modules/**` never imports another module.** Cross-domain work goes in `api/` or `use-cases/`.
 - **Repositories are private** to their module's service - not exported from the Nest module.
-- **`org_id` is mandatory** on every tenant-scoped service/repository method - defense in depth alongside RLS.
+- **`org_id` on tenant models** is enforced by the Prisma tenant extension (from CLS) on allowlisted models — not repeated manually on every query. See [Tenant isolation](#tenant-isolation).
 
 | Logic                         | Lives in                   |
 | ----------------------------- | -------------------------- |
@@ -74,23 +74,37 @@ Promote logic into `use-cases/` only when a **second real call site** needs the 
 
 ---
 
-## Tenant isolation (RLS)
+## Tenant isolation
 
-Two layers:
+Full rationale: [ADR-0002](./adr/0002-application-layer-tenant-isolation.md).
 
-1. **Application:** Access JWT identifies the user (`sub`, `sid`). Tenant routes require `x-org-id`; the API validates membership before tenant work. Every query helper requires `org_id`.
-2. **Database:** RLS on tenant tables - `org_id = current_setting('app.current_org')`.
+Three application layers (Postgres RLS deferred):
 
-Every tenant-scoped DB operation runs through **`TenantPrismaService.run(orgId, fn)`**:
+1. **HTTP guard:** `OrgMemberGuard` on tenant-scoped controllers (after JWT auth). Validates `x-org-id`, checks org membership, sets CLS (`orgId`, `userId`, `orgRole`).
+2. **Request context:** `TenantContextService` reads CLS in `api/` services — avoids threading org through every method signature.
+3. **Data scoping:** Prisma Client extension on allowlisted models (`Project`, …) merges `organizationId` from CLS into reads/writes. Throws if tenant context is missing.
 
-1. Open a short `$transaction` (not the full HTTP request).
-2. `set_config('app.current_org', orgId, true)` (transaction-local).
-3. Run callback with transaction client `tx`.
-4. Commit.
+```
+HTTP / job / webhook entry
+   │
+   ├─ HTTP: OrgMemberGuard → CLS
+   ├─ Job: cls.run(() => cls.set('orgId', …))
+   └─ Webhook: resolve org from Stripe customer → cls.run(…)
+   │
+   ▼
+api/<feature>/service     (reads TenantContextService where needed)
+   │
+   ▼
+modules/<feature>/service → repository → extended Prisma client
+```
 
-HTTP handlers, Stripe webhooks, and BullMQ workers use the same runner. **Bootstrap paths** (org creation before tenant context exists) use a separate explicit method - narrow and rare.
+**Bootstrap paths** (register + create org, auth) do not use `OrgMemberGuard` and do not touch tenant-scoped models until an org exists.
 
-An automated **cross-tenant isolation test** verifies org A's session cannot read org B's data, even when a query deliberately omits `org_id`.
+**Async entry points** (BullMQ, Stripe webhooks) must set CLS before module/DB work — same extension, no separate scoping logic.
+
+**Verification:** `apps/api/test/tenant-isolation.e2e-spec.ts` — org B cannot read/update org A's project via HTTP; module queries without explicit `organizationId` still respect CLS org scope.
+
+**Future:** Postgres RLS when a concrete trigger appears (compliance, BI on prod DB, second service sharing Postgres).
 
 ---
 
@@ -99,9 +113,11 @@ An automated **cross-tenant isolation test** verifies org A's session cannot rea
 Use transactions when multiple writes must succeed or fail together (register-with-org, invite accept, Stripe webhook idempotency + plan update). Do **not** wrap full HTTP handlers or hold transactions across Stripe, queue enqueue, or file I/O.
 
 ```
-tenantPrisma.run(orgId, async (tx) => { /* DB work */ })
+databaseService.client.$transaction(async (tx) => { /* DB work via { tx } */ })
 // enqueue / external calls after commit
 ```
+
+Tenant-scoped module calls rely on CLS (set by guard or async entry wrapper) plus the Prisma extension — no separate `TenantPrismaService` until/unless RLS is adopted.
 
 ---
 
@@ -223,7 +239,7 @@ Prisma args must not leak above the service layer. `api/` and `use-cases/` never
 repository.create({ data: { … } }, { tx });
 ```
 
-Services accept `DbOptions` and pass them through so callers inside `tenantPrisma.run(…)` or `$transaction(…)` can share a transaction client.
+Services accept `DbOptions` and pass them through so callers inside `$transaction(…)` can share a transaction client.
 
 ### Data-access errors
 
@@ -252,7 +268,7 @@ Pagination strategy is **per endpoint** — offset and cursor coexist; do not pi
 | **Offset** | `OffsetPaginationInput` / `OffsetPaginationQuerySchema` | `{ items, totalCount }` (domain)                                   | `page`, `limit`, `totalCount`, `totalPages` |
 | **Cursor** | `CursorPaginationInput` / `CursorPaginationQuerySchema` | `{ items, next? }` — decoded keyset position, not an opaque string | `limit`, `nextCursor`                       |
 
-Cursors on the wire are **opaque base64-encoded JSON**. `api/` decodes incoming `cursor` query params and encodes `next` before responding (`PaginationHelper` in `common/helpers/pagination.ts`). Module services accept `limit` plus an optional decoded cursor position (e.g. `after?: { membershipId, orgName }`), compose keyset `where` clauses, and return the next decoded position — never base64 strings or `ApiPaginationWire`.
+Cursors on the wire are **opaque base64-encoded JSON**. `api/` decodes incoming `cursor` query params and encodes `next` before responding (`Helpers` in `common/helpers/index.ts`). Module services accept `limit` plus an optional decoded cursor position (e.g. `after?: { membershipId, orgName }`), compose keyset `where` clauses, and return the next decoded position — never base64 strings or `ApiPaginationWire`.
 
 Flow:
 

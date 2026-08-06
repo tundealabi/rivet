@@ -25,10 +25,7 @@ export class ProjectService {
   }
 
   async getProject(id: string): Promise<ProjectResponseWire> {
-    const project = await this.projectService.findById({
-      id,
-      organizationId: this.tenantContext.orgId,
-    });
+    const project = await this.projectService.findById({ id });
 
     if (!project) {
       throw new DomainError(
@@ -42,9 +39,7 @@ export class ProjectService {
   }
 
   async listProjects(): Promise<ProjectResponseWire[]> {
-    const projects = await this.projectService.listForOrganization({
-      organizationId: this.tenantContext.orgId,
-    });
+    const projects = await this.projectService.list();
 
     return projects.map((project) => this.toResponse(project));
   }

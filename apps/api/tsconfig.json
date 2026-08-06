@@ -13,14 +13,14 @@
     "target": "ES2023",
     "sourceMap": true,
     "outDir": "./dist",
-    "baseUrl": "./",
     "paths": {
-      "@/*": ["src/*"],
-      "@generated/prisma": ["src/generated/prisma/client"],
-      "@generated/prisma/*": ["src/generated/prisma/*"]
+      "@/*": ["./src/*"],
+      "@generated/prisma": ["./src/generated/prisma/client"],
+      "@generated/prisma/*": ["./src/generated/prisma/*"]
     },
     "incremental": true,
     "skipLibCheck": true,
+    "types": ["jest", "node"],
     "strictNullChecks": true,
     "forceConsistentCasingInFileNames": true,
     "noImplicitAny": false,

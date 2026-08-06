@@ -46,6 +46,12 @@ import { OrgMemberModule } from "@/modules/org-member/org-member.module";
     OrgMemberModule,
   ],
   providers: [HashService, TokenService, TenantContextService, OrgMemberGuard],
-  exports: [HashService, TokenService, TenantContextService, OrgMemberGuard],
+  exports: [
+    HashService,
+    TokenService,
+    TenantContextService,
+    OrgMemberGuard,
+    OrgMemberModule,
+  ],
 })
 export class CommonModule {}

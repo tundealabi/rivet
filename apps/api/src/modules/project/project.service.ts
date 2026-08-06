@@ -11,7 +11,6 @@ import { ProjectRepository } from "./project.repository";
 import {
   CreateProjectInput,
   FindProjectByIdInput,
-  ListProjectsForOrganizationInput,
   UpdateProjectInput,
 } from "./project.types";
 
@@ -60,17 +59,11 @@ export class ProjectService {
     }
   }
 
-  async listForOrganization(
-    input: ListProjectsForOrganizationInput,
-    options?: DbOptions
-  ): Promise<Project[]> {
+  async list(options?: DbOptions): Promise<Project[]> {
     return this.projectRepository.findMany(
       {
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         take: CURSOR_PAGINATION_MAX_LIMIT,
-        where: {
-          organizationId: input.organizationId,
-        },
       },
       options
     );
@@ -84,7 +77,6 @@ export class ProjectService {
       {
         where: {
           id: input.id,
-          organizationId: input.organizationId,
         },
       },
       options
