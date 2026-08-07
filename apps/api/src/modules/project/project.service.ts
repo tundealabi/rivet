@@ -1,28 +1,111 @@
 import { Project } from "@generated/prisma";
 import { Injectable } from "@nestjs/common";
-import { ErrorMessage } from "@rivet/shared/enums";
+import { CURSOR_PAGINATION_MAX_LIMIT } from "@rivet/shared/constants";
+import { ErrorCode, ErrorMessage } from "@rivet/shared/enums";
 
-import { ValidationError } from "@/common/errors";
+import { DomainError, ValidationError } from "@/common/errors";
+import { DatabaseService } from "@/database/database.service";
 import { DbOptions } from "@/database/database.types";
 
 import { ProjectRepository } from "./project.repository";
-import { CreateProjectInput, UpdateProjectInput } from "./project.types";
+import {
+  CreateProjectInput,
+  FindProjectByIdInput,
+  UpdateProjectInput,
+} from "./project.types";
 
 @Injectable()
 export class ProjectService {
-  constructor(private readonly projectRepository: ProjectRepository) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly projectRepository: ProjectRepository
+  ) {}
 
   async create(
     input: CreateProjectInput,
     options?: DbOptions
   ): Promise<Project> {
-    const project = await this.projectRepository.create(input, options);
-    if (!project) {
-      throw new ValidationError({
-        name: [{ message: ErrorMessage.PROJECT_NAME_ALREADY_EXISTS }],
-      });
+    try {
+      return await this.projectRepository.create(
+        {
+          data: {
+            createdById: input.createdById,
+            description: input.description,
+            key: input.key,
+            name: input.name,
+            organizationId: input.organizationId,
+          },
+        },
+        options
+      );
+    } catch (err) {
+      if (err instanceof Error) {
+        if (
+          this.databaseService.isUniqueConstraintViolationError(err, "name")
+        ) {
+          throw new ValidationError({
+            name: [{ message: ErrorMessage.PROJECT_NAME_ALREADY_EXISTS }],
+          });
+        }
+
+        if (this.databaseService.isUniqueConstraintViolationError(err, "key")) {
+          throw new ValidationError({
+            key: [{ message: ErrorMessage.PROJECT_KEY_ALREADY_EXISTS }],
+          });
+        }
+      }
+
+      throw err;
     }
-    return project;
+  }
+
+  async list(options?: DbOptions): Promise<Project[]> {
+    return this.projectRepository.findMany(
+      {
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        take: CURSOR_PAGINATION_MAX_LIMIT,
+      },
+      options
+    );
+  }
+
+  async findById(
+    input: FindProjectByIdInput,
+    options?: DbOptions
+  ): Promise<Project | null> {
+    return this.projectRepository.findFirst(
+      {
+        where: {
+          id: input.id,
+        },
+      },
+      options
+    );
+  }
+
+  async allocateNextIssueNumber(
+    projectId: string,
+    options?: DbOptions
+  ): Promise<number> {
+    const updated = await this.projectRepository.update(
+      {
+        where: { id: projectId },
+        data: {
+          nextIssueNumber: { increment: 1 },
+        },
+      },
+      options
+    );
+
+    if (!updated) {
+      throw new DomainError(
+        "NOT_FOUND",
+        ErrorCode.NOT_FOUND,
+        ErrorMessage.NOT_FOUND
+      );
+    }
+
+    return updated.nextIssueNumber - 1;
   }
 
   async update(
@@ -31,10 +114,12 @@ export class ProjectService {
     options?: DbOptions
   ): Promise<Project | null> {
     return this.projectRepository.update(
-      { id },
       {
-        description: input.description,
-        name: input.name,
+        where: { id },
+        data: {
+          description: input.description,
+          name: input.name,
+        },
       },
       options
     );

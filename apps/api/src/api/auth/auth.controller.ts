@@ -69,7 +69,7 @@ export class AuthController {
 
   @Post("logout")
   @ApiEnvelopeResponse(null, {
-    auth: "required",
+    auth: "public",
     description: "Logout a user",
     httpStatus: HttpStatus.OK,
     summary: "Logout a user",
@@ -78,8 +78,12 @@ export class AuthController {
     @Cookies(AUTH_REFRESH_TOKEN_COOKIE_NAME) refreshToken: string,
     @Res({ passthrough: true }) res: Response
   ) {
+    const cookieOptions = this.service.getCookieOptions();
     res.clearCookie(AUTH_REFRESH_TOKEN_COOKIE_NAME, {
-      path: this.service.getCookieOptions().path,
+      httpOnly: cookieOptions.httpOnly,
+      path: cookieOptions.path,
+      sameSite: cookieOptions.sameSite,
+      secure: cookieOptions.secure,
     });
     return this.service.logout({
       refreshToken,
@@ -92,7 +96,7 @@ export class AuthController {
 
   @Post("refresh")
   @ApiEnvelopeResponse(RefreshAuthResponseDto, {
-    auth: "required",
+    auth: "public",
     description: "Refresh authentication tokens",
     errorResponses: [
       {

@@ -3,8 +3,8 @@ import type { ProjectResponseWire } from "@rivet/shared/api";
 import { ErrorCode, ErrorMessage } from "@rivet/shared/enums";
 
 import { DomainError } from "@/common/errors";
+import { TenantContextService } from "@/common/services";
 import { Project } from "@/generated/prisma/client";
-import { OrgMemberService } from "@/modules/org-member/org-member.service";
 import { ProjectService as ProjectModuleService } from "@/modules/project/project.service";
 
 import { CreateProjectInput, UpdateProjectInput } from "./project.types";
@@ -12,39 +12,39 @@ import { CreateProjectInput, UpdateProjectInput } from "./project.types";
 @Injectable()
 export class ProjectService {
   constructor(
-    private readonly orgMemberService: OrgMemberService,
-    private readonly projectService: ProjectModuleService
+    private readonly projectService: ProjectModuleService,
+    private readonly tenantContext: TenantContextService
   ) {}
 
   async createProject(input: CreateProjectInput): Promise<ProjectResponseWire> {
-    const orgMember = await this.orgMemberService.findByOrgAndUser({
-      orgId: input.organizationId,
-      userId: input.createdById,
+    const project = await this.projectService.create({
+      ...input,
+      organizationId: this.tenantContext.orgId,
     });
-    if (!orgMember) {
-      throw new DomainError(
-        "FORBIDDEN",
-        ErrorCode.FORBIDDEN,
-        ErrorMessage.FORBIDDEN
-      );
-    }
-    const project = await this.projectService.create(input);
     return this.toResponse(project);
   }
 
-  async updateProject(input: UpdateProjectInput): Promise<ProjectResponseWire> {
-    const orgMember = await this.orgMemberService.findByOrgAndUser({
-      orgId: input.organizationId,
-      userId: input.userId,
-    });
+  async getProject(id: string): Promise<ProjectResponseWire> {
+    const project = await this.projectService.findById({ id });
 
-    if (!orgMember) {
+    if (!project) {
       throw new DomainError(
-        "FORBIDDEN",
-        ErrorCode.FORBIDDEN,
-        ErrorMessage.FORBIDDEN
+        "NOT_FOUND",
+        ErrorCode.NOT_FOUND,
+        ErrorMessage.NOT_FOUND
       );
     }
+
+    return this.toResponse(project);
+  }
+
+  async listProjects(): Promise<ProjectResponseWire[]> {
+    const projects = await this.projectService.list();
+
+    return projects.map((project) => this.toResponse(project));
+  }
+
+  async updateProject(input: UpdateProjectInput): Promise<ProjectResponseWire> {
     const project = await this.projectService.update(input.id, input);
 
     if (!project) {
@@ -62,6 +62,7 @@ export class ProjectService {
       createdAt: project.createdAt.toISOString(),
       description: project.description,
       id: project.id,
+      key: project.key,
       name: project.name,
     };
   }

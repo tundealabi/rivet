@@ -10,13 +10,40 @@
     "^@generated/prisma/(.*)$": "<rootDir>/src/generated/prisma/$1",
     "^@rivet/shared$": "<rootDir>/../../packages/shared/src/index.ts",
     "^@rivet/shared/api$": "<rootDir>/../../packages/shared/src/api/index.ts",
-    "^@rivet/shared/enums$": "<rootDir>/../../packages/shared/src/enums/index.ts"
+    "^@rivet/shared/enums$": "<rootDir>/../../packages/shared/src/enums/index.ts",
+    "^@rivet/shared/constants$": "<rootDir>/../../packages/shared/src/constants.ts",
+    "^@rivet/shared/utils$": "<rootDir>/../../packages/shared/src/utils/index.ts"
   },
+  "transformIgnorePatterns": [
+    "/node_modules/(?!(@prisma/client|\\.pnpm/@prisma\\+client))"
+  ],
   "transform": {
     "^.+\\.(t|j)s$": [
-      "ts-jest",
+      "@swc/jest",
       {
-        "tsconfig": "<rootDir>/test/tsconfig.e2e.json"
+        "jsc": {
+          "parser": {
+            "syntax": "typescript",
+            "decorators": true,
+            "dynamicImport": true
+          },
+          "transform": {
+            "legacyDecorator": true,
+            "decoratorMetadata": true
+          },
+          "keepClassNames": true
+        },
+        "module": {
+          "type": "commonjs"
+        }
+      }
+    ],
+    "^.+\\.mjs$": [
+      "@swc/jest",
+      {
+        "module": {
+          "type": "commonjs"
+        }
       }
     ]
   }

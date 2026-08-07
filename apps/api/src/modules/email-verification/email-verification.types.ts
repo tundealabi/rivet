@@ -72,11 +72,6 @@ export interface EmailVerificationVerifyState {
   storedCodeSecret: string;
 }
 
-export interface FindEmailVerificationInput {
-  context: EmailVerificationContext;
-  userId: string;
-}
-
 export interface VerifyEmailVerificationInput {
   limits: EmailVerificationVerifyLimits;
   matchesStoredCode: (storedCode: string) => boolean;

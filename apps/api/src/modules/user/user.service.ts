@@ -16,15 +16,27 @@ import {
 export class UserService {
   constructor(
     private readonly databaseService: DatabaseService,
-
     private readonly userRepository: UserRepository
   ) {}
 
   async create(input: CreateUserInput, options?: DbOptions): Promise<User> {
     try {
-      return await this.userRepository.create(input, options);
+      return await this.userRepository.create(
+        {
+          data: {
+            email: input.email,
+            firstName: input.firstName,
+            lastName: input.lastName,
+            passwordHash: input.hashedPassword,
+          },
+        },
+        options
+      );
     } catch (err) {
-      if (this.databaseService.isUniqueConstraintViolationError(err, "email")) {
+      if (
+        err instanceof Error &&
+        this.databaseService.isUniqueConstraintViolationError(err, "email")
+      ) {
         throw new DomainError(
           "CONFLICT",
           ErrorCode.AUTH_EMAIL_ALREADY_EXISTS,
@@ -36,11 +48,11 @@ export class UserService {
   }
 
   async findByEmail(email: string, options?: DbOptions) {
-    return this.userRepository.findByEmail(email, options);
+    return await this.userRepository.findUnique({ where: { email } }, options);
   }
 
   async findById(id: string, options?: DbOptions) {
-    return this.userRepository.findById(id, options);
+    return await this.userRepository.findUnique({ where: { id } }, options);
   }
 
   async updateEmailVerification(
@@ -48,6 +60,14 @@ export class UserService {
     input: UpdateUserEmailVerificationInput,
     options?: DbOptions
   ) {
-    return this.userRepository.updateEmailVerification(id, input, options);
+    return await this.userRepository.update(
+      {
+        where: { id },
+        data: {
+          emailVerifiedAt: input.emailVerifiedAt,
+        },
+      },
+      options
+    );
   }
 }

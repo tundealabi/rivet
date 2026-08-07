@@ -2,18 +2,20 @@
 
 Architecture decisions for the Rivet codebase. Living document - update as implementation reveals new constraints.
 
+For point-in-time decision history, see [`docs/adr/`](./adr/README.md) (use [`template.md`](./adr/template.md) to add a new record).
+
 ---
 
 ## Stack
 
-- **API:** NestJS, Prisma, PostgreSQL with Row-Level Security (RLS)
+- **API:** NestJS, Prisma, PostgreSQL (shared; RLS deferred — see [ADR-0002](./adr/0002-application-layer-tenant-isolation.md))
 - **Web:** Vite, React, TanStack Query
 - **Shared:** `@rivet/shared` - wire types, API envelope, Zod/constants (framework-agnostic)
 - **Jobs:** BullMQ + Redis
 - **Billing:** Stripe (test mode in development)
 - **Observability:** structured logs, Prometheus/Grafana, OpenTelemetry traces, alerts
 
-PostgreSQL was chosen over document stores because **RLS** enforces tenant isolation at the database layer, not only in application code. Prisma was chosen for transaction ergonomics, schema-first workflow, and readable SQL when debugging RLS.
+PostgreSQL was chosen for relational data and mature tooling. Prisma was chosen for transaction ergonomics, schema-first workflow, and Client extensions for tenant query scoping. **Postgres RLS** is a documented future backstop when compliance or multiple DB consumers require database-enforced isolation ([ADR-0002](./adr/0002-application-layer-tenant-isolation.md)).
 
 ---
 
@@ -51,7 +53,7 @@ use-cases/<name>/      Multi-domain flows used from 2+ entry points (HTTP-unawar
 modules/<name>/        Domain services + private repositories (one domain each)
    │
    ▼
-PostgreSQL (RLS)
+PostgreSQL
 ```
 
 `api/` is organized by **feature** (`auth`, `org`, `projects`, `issues`, `billing`, `webhooks`), not by actor type - org members differ by **role**, not by separate app surfaces.
@@ -60,7 +62,7 @@ PostgreSQL (RLS)
 
 - **`modules/**` never imports another module.** Cross-domain work goes in `api/` or `use-cases/`.
 - **Repositories are private** to their module's service - not exported from the Nest module.
-- **`org_id` is mandatory** on every tenant-scoped service/repository method - defense in depth alongside RLS.
+- **`org_id` on tenant models** is enforced by the Prisma tenant extension (from CLS) on allowlisted models — not repeated manually on every query. See [Tenant isolation](#tenant-isolation).
 
 | Logic                         | Lives in                   |
 | ----------------------------- | -------------------------- |
@@ -72,23 +74,37 @@ Promote logic into `use-cases/` only when a **second real call site** needs the 
 
 ---
 
-## Tenant isolation (RLS)
+## Tenant isolation
 
-Two layers:
+Full rationale: [ADR-0002](./adr/0002-application-layer-tenant-isolation.md).
 
-1. **Application:** JWT carries `activeOrgId`; guard validates membership; every query helper requires `org_id`.
-2. **Database:** RLS on tenant tables - `org_id = current_setting('app.current_org')`.
+Three application layers (Postgres RLS deferred):
 
-Every tenant-scoped DB operation runs through **`TenantPrismaService.run(orgId, fn)`**:
+1. **HTTP guard:** `OrgMemberGuard` on tenant-scoped controllers (after JWT auth). Validates `x-org-id`, checks org membership, sets CLS (`orgId`, `userId`, `orgRole`).
+2. **Request context:** `TenantContextService` reads CLS in `api/` services — avoids threading org through every method signature.
+3. **Data scoping:** Prisma Client extension on allowlisted models (`Project`, …) merges `organizationId` from CLS into reads/writes. Throws if tenant context is missing.
 
-1. Open a short `$transaction` (not the full HTTP request).
-2. `set_config('app.current_org', orgId, true)` (transaction-local).
-3. Run callback with transaction client `tx`.
-4. Commit.
+```
+HTTP / job / webhook entry
+   │
+   ├─ HTTP: OrgMemberGuard → CLS
+   ├─ Job: cls.run(() => cls.set('orgId', …))
+   └─ Webhook: resolve org from Stripe customer → cls.run(…)
+   │
+   ▼
+api/<feature>/service     (reads TenantContextService where needed)
+   │
+   ▼
+modules/<feature>/service → repository → extended Prisma client
+```
 
-HTTP handlers, Stripe webhooks, and BullMQ workers use the same runner. **Bootstrap paths** (org creation before tenant context exists) use a separate explicit method - narrow and rare.
+**Bootstrap paths** (register + create org, auth) do not use `OrgMemberGuard` and do not touch tenant-scoped models until an org exists.
 
-An automated **cross-tenant isolation test** verifies org A's session cannot read org B's data, even when a query deliberately omits `org_id`.
+**Async entry points** (BullMQ, Stripe webhooks) must set CLS before module/DB work — same extension, no separate scoping logic.
+
+**Verification:** `apps/api/test/tenant-isolation.e2e-spec.ts` — org B cannot read/update org A's project via HTTP; module queries without explicit `organizationId` still respect CLS org scope.
+
+**Future:** Postgres RLS when a concrete trigger appears (compliance, BI on prod DB, second service sharing Postgres).
 
 ---
 
@@ -97,24 +113,30 @@ An automated **cross-tenant isolation test** verifies org A's session cannot rea
 Use transactions when multiple writes must succeed or fail together (register-with-org, invite accept, Stripe webhook idempotency + plan update). Do **not** wrap full HTTP handlers or hold transactions across Stripe, queue enqueue, or file I/O.
 
 ```
-tenantPrisma.run(orgId, async (tx) => { /* DB work */ })
+databaseService.client.$transaction(async (tx) => { /* DB work via { tx } */ })
 // enqueue / external calls after commit
 ```
+
+Tenant-scoped module calls rely on CLS (set by guard or async entry wrapper) plus the Prisma extension — no separate `TenantPrismaService` until/unless RLS is adopted.
 
 ---
 
 ## Authentication
 
-Short-lived **access JWT** (Bearer, ~15–30 min) + long-lived **refresh token** (httpOnly cookie, ~7–30 days).
+Short-lived **access JWT** (Bearer, ~15 min) + long-lived **refresh token** (`httpOnly` cookie, ~7 days). Full rationale: [ADR-0001](./adr/0001-dual-token-auth-with-httponly-refresh-cookie.md).
 
-| Token      | Storage         | Claims / notes                                                               |
-| ---------- | --------------- | ---------------------------------------------------------------------------- |
-| Access JWT | Client memory   | `sub`, `activeOrgId`, `role`                                                 |
-| Refresh    | httpOnly cookie | Hash stored in `refresh_tokens` table; rotated on refresh; revoked on logout |
+| Token      | Storage               | Notes                                                                                                      |
+| ---------- | --------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Access JWT | Client (localStorage) | Claims: `sub` (user), `sid` (session). Sent as `Authorization: Bearer`.                                    |
+| Refresh    | `httpOnly` cookie     | Opaque token; hash in `refresh_tokens`; rotated on refresh; revoked on logout. **Never returned in JSON.** |
 
-**Org switcher:** `POST /auth/switch-org` issues a new access JWT with updated `activeOrgId` and `role`; refresh session unchanged.
+**Deployment:** Web (Vercel) and API (Render) are cross-origin. Refresh cookie uses `SameSite=None; Secure` in production. CORS allows credentialed requests from allowlisted frontend origins.
 
-**Not in v1:** OAuth, MFA, session admin UI.
+**Org context:** Tenant-scoped routes require the **`x-org-id` header**. The API validates the authenticated user belongs to that org (membership check) before tenant logic runs. Org switch updates client state and subsequent headers — no new access token.
+
+**Client contract (target):** Login/refresh/logout use `fetch` with `credentials: 'include'`. Access token in localStorage; refresh token never in JS.
+
+**Not in v1:** OAuth, MFA, session admin UI, BFF for token storage.
 
 ---
 
@@ -166,9 +188,97 @@ Compose in `api/` or `use-cases/` - batch-fetch related entities and map, rather
 
 ---
 
-## Repository abstraction
+## Module repositories & services
 
-Interface + Prisma implementation only for modules with branching logic worth unit testing (`issues`, `billing`). Thin CRUD modules use Prisma directly until complexity warrants promotion.
+Each domain module (`modules/<name>/`) has a **repository** (data access) and a **service** (domain API for `api/` and `use-cases/`). Repositories are private to the module — not exported from the Nest module.
+
+### Responsibilities
+
+| Layer          | Owns                                                             | Does not own                                        |
+| -------------- | ---------------------------------------------------------------- | --------------------------------------------------- |
+| **Repository** | Prisma pass-through, `DbOptions` / transaction client resolution | Business rules, HTTP context, domain input shaping  |
+| **Service**    | Query composition, intent-named methods, domain errors           | Wire types, controllers, cross-module orchestration |
+
+**Repository** methods accept full Prisma `*Args` types and forward them to the client. They are generic so return types flow from the args (including `select`, `include`, `take`, `skip`, `orderBy`):
+
+```ts
+async findUnique<T extends OrganizationFindUniqueArgs>(
+  args: T,
+  dbOptions?: DbOptions
+) {
+  const client = this.databaseService.resolveClient(dbOptions);
+  return client.organization.findUnique(args);
+}
+```
+
+Do **not** pin return types to the full model (e.g. `Promise<Organization | null>`) — that breaks when callers pass `select` or `include`.
+
+**Service** methods are named for **intent** (`findByEmail`, `listForUser`, `create`) and compose Prisma args internally. Other layers call the service, not the repository:
+
+```ts
+async create(input: CreateOrgInput, options?: DbOptions): Promise<Organization> {
+  return this.orgRepository.create({ data: { name: input.name } }, options);
+}
+```
+
+Prisma args must not leak above the service layer. `api/` and `use-cases/` never import `*Args` types or call repositories directly.
+
+### Types
+
+| Kind                        | Where                             | Rule                                                                                           |
+| --------------------------- | --------------------------------- | ---------------------------------------------------------------------------------------------- |
+| **Input**                   | `modules/<name>/<name>.types.ts`  | Define when the service boundary is not 1:1 with Prisma (e.g. `CreateOrgInput`)                |
+| **Output**                  | `@generated/prisma`               | Reuse Prisma model types when the shape is unchanged — no parallel `OrgEntity` / `OrgResponse` |
+| **Partial / joined shapes** | Call site or `Prisma.*GetPayload` | Only when `select` / `include` produces a different shape                                      |
+
+### Transactions
+
+`DbOptions` (`{ tx?: TransactionClient }`) is always a **separate** parameter from query args — never mixed into a single `options` bag:
+
+```ts
+repository.create({ data: { … } }, { tx });
+```
+
+Services accept `DbOptions` and pass them through so callers inside `$transaction(…)` can share a transaction client.
+
+### Data-access errors
+
+Keep Prisma error mapping in the **repository** when it is purely a data-access concern (e.g. unique constraint → `null`, not found → `null`). Map to domain errors (`DomainError`, `ValidationError`) in the **service**:
+
+| Concern                                    | Layer      |
+| ------------------------------------------ | ---------- |
+| `P2002` unique violation → `null`          | Repository |
+| `null` → `ValidationError` / `DomainError` | Service    |
+| Email already exists, forbidden, etc.      | Service    |
+
+### Multi-model repositories
+
+When one module owns more than one Prisma model (e.g. `auth`: `Session` + `RefreshToken`), use **prefixed** repository methods (`createSession`, `findUniqueRefreshToken`) but the same `*Args` + generic pattern. Services still expose intent-named methods (`findSessionById`, `createRefreshToken`).
+
+### When to add repository logic beyond pass-through
+
+Stay thin by default. Add non-trivial logic in the repository only when it encapsulates data-access behavior that should not be duplicated — error mapping, multi-step queries, or queries you deliberately do not want repeated across service methods. Everything else stays in the service.
+
+### Pagination
+
+Pagination strategy is **per endpoint** — offset and cursor coexist; do not pick one globally.
+
+| Strategy   | Input (`@rivet/shared`)                                 | Module result                                                      | Wire `pagination` fields                    |
+| ---------- | ------------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------- |
+| **Offset** | `OffsetPaginationInput` / `OffsetPaginationQuerySchema` | `{ items, totalCount }` (domain)                                   | `page`, `limit`, `totalCount`, `totalPages` |
+| **Cursor** | `CursorPaginationInput` / `CursorPaginationQuerySchema` | `{ items, next? }` — decoded keyset position, not an opaque string | `limit`, `nextCursor`                       |
+
+Cursors on the wire are **opaque base64-encoded JSON**. `api/` decodes incoming `cursor` query params and encodes `next` before responding (`Helpers` in `common/helpers/index.ts`). Module services accept `limit` plus an optional decoded cursor position (e.g. `after?: { membershipId, orgName }`), compose keyset `where` clauses, and return the next decoded position — never base64 strings or `ApiPaginationWire`.
+
+Flow:
+
+```
+Query DTO (api/<feature>/dto/)  →  decode wire cursor  →  module list input (limit, after?)  →  module returns items + next position  →  api encodes nextCursor + envelope
+```
+
+- One DTO per strategy — do not accept `page` and `cursor` on the same endpoint.
+- Module services expose intent-named list methods with `limit` and an optional decoded cursor position — not wire cursor strings or `@rivet/shared/api` pagination result types.
+- Map module results to the HTTP envelope in `api/` via `toOffsetPaginatedResult` / `toCursorPaginatedResult` (`common/helpers/pagination.ts`). Modules never return `ApiPaginationWire`.
 
 ---
 

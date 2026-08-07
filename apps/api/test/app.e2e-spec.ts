@@ -1,24 +1,18 @@
-import { INestApplication } from "@nestjs/common";
-import { Test, TestingModule } from "@nestjs/testing";
 import type { ApiSuccessResponseWire } from "@rivet/shared/api";
 import { ApiResponseState } from "@rivet/shared/enums";
 import request from "supertest";
-import { App } from "supertest/types";
 
-import { AppModule } from "../src/app/app.module";
-import { configureApp } from "../src/app/configure-app";
+import { createE2eApp } from "./helpers/e2e-app.helper";
 
 describe("AppController (e2e)", () => {
-  let app: INestApplication<App>;
+  let app: Awaited<ReturnType<typeof createE2eApp>>;
 
   beforeEach(async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
+    app = await createE2eApp();
+  });
 
-    app = moduleFixture.createNestApplication();
-    configureApp(app);
-    await app.init();
+  afterEach(async () => {
+    await app.close();
   });
 
   it("/ (GET)", () => {
@@ -34,9 +28,5 @@ describe("AppController (e2e)", () => {
         expect(body.requestId).toEqual(expect.any(String));
         expect(body.timestamp).toEqual(expect.any(String));
       });
-  });
-
-  afterEach(async () => {
-    await app.close();
   });
 });

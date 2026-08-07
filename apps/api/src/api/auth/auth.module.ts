@@ -1,6 +1,5 @@
 import { Module } from "@nestjs/common";
 
-import { CommonModule } from "@/common/common.module";
 import { DatabaseModule } from "@/database/database.module";
 import { AuthModule } from "@/modules/auth/auth.module";
 import { EmailVerificationModule } from "@/modules/email-verification/email-verification.module";
@@ -14,7 +13,6 @@ import { AuthService } from "./auth.service";
 @Module({
   imports: [
     AuthModule,
-    CommonModule,
     DatabaseModule,
     EmailVerificationModule,
     UserModule,

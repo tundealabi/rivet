@@ -4,50 +4,51 @@ import { PrismaClientKnownRequestError } from "@prisma/client/runtime/client";
 import { DB_PRISMA_ERROR_CODES } from "@/database/database.contants";
 import { DatabaseService } from "@/database/database.service";
 import { DbOptions } from "@/database/database.types";
-import { Project } from "@/generated/prisma/client";
 import {
-  ProjectUncheckedCreateInput,
-  ProjectUncheckedUpdateInput,
-  ProjectWhereUniqueInput,
+  ProjectCreateArgs,
+  ProjectFindFirstArgs,
+  ProjectFindManyArgs,
+  ProjectFindUniqueArgs,
+  ProjectUpdateArgs,
 } from "@/generated/prisma/models";
 
 @Injectable()
 export class ProjectRepository {
   constructor(private readonly databaseService: DatabaseService) {}
 
-  async create(
-    input: ProjectUncheckedCreateInput,
-    options?: DbOptions
-  ): Promise<Project | null> {
-    try {
-      const client = this.databaseService.resolveClient(options);
-      return client.project.create({ data: input });
-    } catch (err) {
-      if (err instanceof PrismaClientKnownRequestError) {
-        if (err.code === DB_PRISMA_ERROR_CODES.UNIQUE_CONSTRAINT_VIOLATION) {
-          return null;
-        }
-      }
-      throw err;
-    }
+  async create<T extends ProjectCreateArgs>(args: T, dbOptions?: DbOptions) {
+    const client = this.databaseService.resolveClient(dbOptions);
+    return client.project.create(args);
   }
 
-  async find(
-    where: ProjectWhereUniqueInput,
-    options?: DbOptions
-  ): Promise<Project | null> {
-    const client = this.databaseService.resolveClient(options);
-    return client.project.findUnique({ where });
+  async findFirst<T extends ProjectFindFirstArgs>(
+    args: T,
+    dbOptions?: DbOptions
+  ) {
+    const client = this.databaseService.resolveClient(dbOptions);
+    return client.project.findFirst(args);
   }
 
-  async update(
-    where: ProjectWhereUniqueInput,
-    input: ProjectUncheckedUpdateInput,
-    options?: DbOptions
-  ): Promise<Project | null> {
+  async findMany<T extends ProjectFindManyArgs>(
+    args?: T,
+    dbOptions?: DbOptions
+  ) {
+    const client = this.databaseService.resolveClient(dbOptions);
+    return client.project.findMany(args);
+  }
+
+  async findUnique<T extends ProjectFindUniqueArgs>(
+    args: T,
+    dbOptions?: DbOptions
+  ) {
+    const client = this.databaseService.resolveClient(dbOptions);
+    return client.project.findUnique(args);
+  }
+
+  async update<T extends ProjectUpdateArgs>(args: T, dbOptions?: DbOptions) {
     try {
-      const client = this.databaseService.resolveClient(options);
-      return client.project.update({ where, data: input });
+      const client = this.databaseService.resolveClient(dbOptions);
+      return await client.project.update(args);
     } catch (err) {
       if (err instanceof PrismaClientKnownRequestError) {
         if (err.code === DB_PRISMA_ERROR_CODES.NOT_FOUND) {

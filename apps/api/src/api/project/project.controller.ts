@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   HttpStatus,
   Param,
   ParseUUIDPipe,
@@ -11,10 +12,10 @@ import {
 
 import {
   ApiEnvelopeResponse,
-  ApiOrgId,
   ApiOrgIdHeader,
   ApiRequestUser,
 } from "@/common/decorators";
+import { OrgMemberGuard } from "@/common/guards";
 import { AuthJwtUser } from "@/modules/auth/auth.entities";
 import { AuthUserJwtGuard } from "@/modules/auth/auth.guard";
 
@@ -26,7 +27,7 @@ import {
 import { ProjectService } from "./project.service";
 
 @Controller("projects")
-@UseGuards(AuthUserJwtGuard)
+@UseGuards(AuthUserJwtGuard, OrgMemberGuard)
 @ApiOrgIdHeader()
 export class ProjectController {
   constructor(private readonly service: ProjectService) {}
@@ -45,16 +46,54 @@ export class ProjectController {
     summary: "Create a project",
   })
   create(
-    @ApiOrgId() organizationId: string,
     @ApiRequestUser() user: AuthJwtUser,
     @Body() dto: CreateProjectRequestDto
   ): Promise<ProjectResponseDto> {
     return this.service.createProject({
       createdById: user.sub,
       description: dto.description,
+      key: dto.key,
       name: dto.name,
-      organizationId,
     });
+  }
+
+  @Get()
+  @ApiEnvelopeResponse(ProjectResponseDto, {
+    auth: "required",
+    description: "List all projects in the organization from X-ORG-ID",
+    errorResponses: [
+      {
+        description: "Not a member of the organization",
+        status: HttpStatus.FORBIDDEN,
+      },
+    ],
+    httpStatus: HttpStatus.OK,
+    isArray: true,
+    summary: "List organization projects",
+  })
+  list() {
+    return this.service.listProjects();
+  }
+
+  @Get(":id")
+  @ApiEnvelopeResponse(ProjectResponseDto, {
+    auth: "required",
+    description: "Get a project by ID in the organization from X-ORG-ID",
+    errorResponses: [
+      {
+        description: "Not a member of the organization",
+        status: HttpStatus.FORBIDDEN,
+      },
+      {
+        description: "Project not found",
+        status: HttpStatus.NOT_FOUND,
+      },
+    ],
+    httpStatus: HttpStatus.OK,
+    summary: "Get a project",
+  })
+  get(@Param("id", ParseUUIDPipe) id: string): Promise<ProjectResponseDto> {
+    return this.service.getProject(id);
   }
 
   @Patch(":id")
@@ -75,8 +114,6 @@ export class ProjectController {
     summary: "Update a project",
   })
   update(
-    @ApiOrgId() organizationId: string,
-    @ApiRequestUser() user: AuthJwtUser,
     @Param("id", ParseUUIDPipe) id: string,
     @Body() dto: UpdateProjectRequestDto
   ): Promise<ProjectResponseDto> {
@@ -84,8 +121,6 @@ export class ProjectController {
       description: dto.description,
       id,
       name: dto.name,
-      organizationId,
-      userId: user.sub,
     });
   }
 }

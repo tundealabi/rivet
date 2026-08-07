@@ -47,20 +47,20 @@ export class ApiValidationErrorEntity implements ApiValidationErrorWire {
 }
 
 export class ApiPaginationEntity implements ApiPaginationWire {
-  @ApiProperty({ type: "number" })
-  readonly page!: number;
+  @ApiProperty({ type: "number", required: false })
+  readonly page?: number;
 
   @ApiProperty({ type: "number" })
   readonly limit!: number;
 
-  @ApiProperty({ type: "number" })
-  readonly totalCount!: number;
+  @ApiProperty({ type: "number", required: false })
+  readonly totalCount?: number;
 
-  @ApiProperty({ type: "number" })
-  readonly totalPages!: number;
+  @ApiProperty({ type: "number", required: false })
+  readonly totalPages?: number;
 
   @ApiProperty({ type: "string", nullable: true, required: false })
-  readonly cursor?: string | null;
+  readonly nextCursor?: string | null;
 }
 
 export class ApiSuccessResponseEntity<

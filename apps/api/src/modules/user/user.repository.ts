@@ -1,52 +1,32 @@
-import { User } from "@generated/prisma";
 import { Injectable } from "@nestjs/common";
 
 import { DatabaseService } from "@/database/database.service";
 import { DbOptions } from "@/database/database.types";
-
 import {
-  CreateUserInput,
-  UpdateUserEmailVerificationInput,
-} from "./user.types";
+  UserCreateArgs,
+  UserFindUniqueArgs,
+  UserUpdateArgs,
+} from "@/generated/prisma/models";
 
 @Injectable()
 export class UserRepository {
   constructor(private readonly databaseService: DatabaseService) {}
 
-  async create(input: CreateUserInput, options?: DbOptions): Promise<User> {
-    const client = this.databaseService.resolveClient(options);
-    return client.user.create({
-      data: {
-        email: input.email,
-        firstName: input.firstName,
-        lastName: input.lastName,
-        passwordHash: input.hashedPassword,
-      },
-    });
+  async create<T extends UserCreateArgs>(args: T, dbOptions?: DbOptions) {
+    const client = this.databaseService.resolveClient(dbOptions);
+    return client.user.create(args);
   }
-  async findByEmail(email: string, options?: DbOptions): Promise<User | null> {
-    const client = this.databaseService.resolveClient(options);
-    return client.user.findUnique({
-      where: { email },
-    });
+
+  async findUnique<T extends UserFindUniqueArgs>(
+    args: T,
+    dbOptions?: DbOptions
+  ) {
+    const client = this.databaseService.resolveClient(dbOptions);
+    return client.user.findUnique(args);
   }
-  async findById(id: string, options?: DbOptions): Promise<User | null> {
-    const client = this.databaseService.resolveClient(options);
-    return client.user.findUnique({
-      where: { id },
-    });
-  }
-  async updateEmailVerification(
-    id: string,
-    input: UpdateUserEmailVerificationInput,
-    options?: DbOptions
-  ): Promise<User> {
-    const client = this.databaseService.resolveClient(options);
-    return client.user.update({
-      where: { id },
-      data: {
-        emailVerifiedAt: input.emailVerifiedAt,
-      },
-    });
+
+  async update<T extends UserUpdateArgs>(args: T, dbOptions?: DbOptions) {
+    const client = this.databaseService.resolveClient(dbOptions);
+    return client.user.update(args);
   }
 }
