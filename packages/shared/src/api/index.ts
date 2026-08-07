@@ -1,6 +1,7 @@
 export * from "./auth/index.js";
 export * from "./envelope.guards.js";
 export * from "./envelope.wire.js";
+export * from "./issue/index.js";
 export * from "./organization/index.js";
 export * from "./pagination.wire.js";
 export * from "./project/index.js";

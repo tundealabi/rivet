@@ -5,50 +5,53 @@ import { DB_PRISMA_ERROR_CODES } from "@/database/database.contants";
 import { DatabaseService } from "@/database/database.service";
 import { DbOptions } from "@/database/database.types";
 import {
-  ProjectCreateArgs,
-  ProjectFindFirstArgs,
-  ProjectFindManyArgs,
-  ProjectFindUniqueArgs,
-  ProjectUpdateArgs,
+  IssueCreateArgs,
+  IssueFindFirstArgs,
+  IssueFindManyArgs,
+  IssueFindUniqueArgs,
+  IssueGroupByArgs,
+  IssueUpdateArgs,
 } from "@/generated/prisma/models";
 
 @Injectable()
-export class ProjectRepository {
+export class IssueRepository {
   constructor(private readonly databaseService: DatabaseService) {}
 
-  async create<T extends ProjectCreateArgs>(args: T, dbOptions?: DbOptions) {
+  async create<T extends IssueCreateArgs>(args: T, dbOptions?: DbOptions) {
     const client = this.databaseService.resolveClient(dbOptions);
-    return client.project.create(args);
+    return client.issue.create(args);
   }
 
-  async findFirst<T extends ProjectFindFirstArgs>(
+  async findFirst<T extends IssueFindFirstArgs>(
     args: T,
     dbOptions?: DbOptions
   ) {
     const client = this.databaseService.resolveClient(dbOptions);
-    return client.project.findFirst(args);
+    return client.issue.findFirst(args);
   }
 
-  async findMany<T extends ProjectFindManyArgs>(
-    args?: T,
-    dbOptions?: DbOptions
-  ) {
+  async findMany<T extends IssueFindManyArgs>(args?: T, dbOptions?: DbOptions) {
     const client = this.databaseService.resolveClient(dbOptions);
-    return client.project.findMany(args);
+    return client.issue.findMany(args);
   }
 
-  async findUnique<T extends ProjectFindUniqueArgs>(
+  async findUnique<T extends IssueFindUniqueArgs>(
     args: T,
     dbOptions?: DbOptions
   ) {
     const client = this.databaseService.resolveClient(dbOptions);
-    return client.project.findUnique(args);
+    return client.issue.findUnique(args);
   }
 
-  async update<T extends ProjectUpdateArgs>(args: T, dbOptions?: DbOptions) {
+  async groupBy(args: IssueGroupByArgs, dbOptions?: DbOptions) {
+    const client = this.databaseService.resolveClient(dbOptions);
+    return client.issue.groupBy(args as never);
+  }
+
+  async update<T extends IssueUpdateArgs>(args: T, dbOptions?: DbOptions) {
     try {
       const client = this.databaseService.resolveClient(dbOptions);
-      return await client.project.update(args);
+      return await client.issue.update(args);
     } catch (err) {
       if (err instanceof PrismaClientKnownRequestError) {
         if (err.code === DB_PRISMA_ERROR_CODES.NOT_FOUND) {

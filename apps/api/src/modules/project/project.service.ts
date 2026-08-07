@@ -1,9 +1,9 @@
 import { Project } from "@generated/prisma";
 import { Injectable } from "@nestjs/common";
 import { CURSOR_PAGINATION_MAX_LIMIT } from "@rivet/shared/constants";
-import { ErrorMessage } from "@rivet/shared/enums";
+import { ErrorCode, ErrorMessage } from "@rivet/shared/enums";
 
-import { ValidationError } from "@/common/errors";
+import { DomainError, ValidationError } from "@/common/errors";
 import { DatabaseService } from "@/database/database.service";
 import { DbOptions } from "@/database/database.types";
 
@@ -81,6 +81,31 @@ export class ProjectService {
       },
       options
     );
+  }
+
+  async allocateNextIssueNumber(
+    projectId: string,
+    options?: DbOptions
+  ): Promise<number> {
+    const updated = await this.projectRepository.update(
+      {
+        where: { id: projectId },
+        data: {
+          nextIssueNumber: { increment: 1 },
+        },
+      },
+      options
+    );
+
+    if (!updated) {
+      throw new DomainError(
+        "NOT_FOUND",
+        ErrorCode.NOT_FOUND,
+        ErrorMessage.NOT_FOUND
+      );
+    }
+
+    return updated.nextIssueNumber - 1;
   }
 
   async update(

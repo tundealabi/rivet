@@ -3,11 +3,14 @@ import { ConfigService } from "@nestjs/config";
 import { Reflector } from "@nestjs/core";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
-import { ZodSerializerInterceptor, ZodValidationPipe } from "nestjs-zod";
+import { ZodValidationPipe } from "nestjs-zod";
 
 import { ENV_KEYS } from "@/common/constants";
 import { ApiExceptionFilter } from "@/common/filters";
-import { ApiResponseInterceptor } from "@/common/interceptors";
+import {
+  ApiResponseInterceptor,
+  ApiZodSerializerInterceptor,
+} from "@/common/interceptors";
 
 export function configureApp(app: INestApplication): void {
   const configService = app.get(ConfigService);
@@ -29,7 +32,7 @@ export function configureApp(app: INestApplication): void {
 
   app.useGlobalInterceptors(
     new ApiResponseInterceptor(app.get(Reflector)),
-    new ZodSerializerInterceptor(app.get(Reflector))
+    new ApiZodSerializerInterceptor(app.get(Reflector))
   );
   app.useGlobalFilters(new ApiExceptionFilter());
 
