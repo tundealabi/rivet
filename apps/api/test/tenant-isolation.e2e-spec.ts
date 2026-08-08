@@ -4,6 +4,7 @@ import type {
   ApiPaginatedSuccessResponseWire,
   ApiSuccessResponseWire,
   IssueResponseWire,
+  ProjectDetailResponseWire,
   ProjectResponseWire,
 } from "@rivet/shared/api";
 import { ClsService } from "nestjs-cls";
@@ -72,7 +73,7 @@ describe("Tenant isolation (e2e)", () => {
       .expect(200);
 
     const ownerBody =
-      ownerRes.body as ApiSuccessResponseWire<ProjectResponseWire>;
+      ownerRes.body as ApiSuccessResponseWire<ProjectDetailResponseWire>;
     expect(ownerBody.data.id).toBe(orgAProjectId);
 
     await request(app.getHttpServer())
@@ -111,7 +112,7 @@ describe("Tenant isolation (e2e)", () => {
       .expect(200);
 
     const verifyBody =
-      verifyRes.body as ApiSuccessResponseWire<ProjectResponseWire>;
+      verifyRes.body as ApiSuccessResponseWire<ProjectDetailResponseWire>;
     expect(verifyBody.data.name).toBe(orgAProjectName);
   });
 

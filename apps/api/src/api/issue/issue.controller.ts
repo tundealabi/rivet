@@ -42,6 +42,10 @@ export class IssueController {
         status: HttpStatus.FORBIDDEN,
       },
       {
+        description: "Project is archived",
+        status: HttpStatus.CONFLICT,
+      },
+      {
         description: "Project not found",
         status: HttpStatus.NOT_FOUND,
       },
@@ -142,6 +146,10 @@ export class IssueController {
       {
         description: "Not a member of the organization",
         status: HttpStatus.FORBIDDEN,
+      },
+      {
+        description: "Project is archived",
+        status: HttpStatus.CONFLICT,
       },
       {
         description: "Issue not found",

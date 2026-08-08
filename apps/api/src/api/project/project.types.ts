@@ -5,6 +5,10 @@ export interface CreateProjectInput {
   name: string;
 }
 
+export interface ListProjectsInput {
+  archived: boolean;
+}
+
 export interface UpdateProjectInput {
   description?: string;
   id: string;

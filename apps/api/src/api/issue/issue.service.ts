@@ -43,18 +43,10 @@ export class IssueService {
       await this.databaseService.client.$transaction(async (tx) => {
         const options = { tx };
 
-        const project = await this.projectService.findById(
+        const project = await this.projectService.getActiveById(
           { id: input.projectId },
           options
         );
-
-        if (!project) {
-          throw new DomainError(
-            "NOT_FOUND",
-            ErrorCode.NOT_FOUND,
-            ErrorMessage.NOT_FOUND
-          );
-        }
 
         const number = await this.projectService.allocateNextIssueNumber(
           project.id,
@@ -169,6 +161,20 @@ export class IssueService {
   }
 
   async updateIssue(input: UpdateIssueInput): Promise<IssueResponseWire> {
+    const existing = await this.issueService.findById({ id: input.id });
+
+    if (!existing) {
+      throw new DomainError(
+        "NOT_FOUND",
+        ErrorCode.NOT_FOUND,
+        ErrorMessage.NOT_FOUND
+      );
+    }
+
+    const project = await this.projectService.getActiveById({
+      id: existing.projectId,
+    });
+
     const issue = await this.issueService.update(input.id, {
       description: input.description,
       priority: input.priority,
@@ -177,18 +183,6 @@ export class IssueService {
     });
 
     if (!issue) {
-      throw new DomainError(
-        "NOT_FOUND",
-        ErrorCode.NOT_FOUND,
-        ErrorMessage.NOT_FOUND
-      );
-    }
-
-    const project = await this.projectService.findById({
-      id: issue.projectId,
-    });
-
-    if (!project) {
       throw new DomainError(
         "NOT_FOUND",
         ErrorCode.NOT_FOUND,
