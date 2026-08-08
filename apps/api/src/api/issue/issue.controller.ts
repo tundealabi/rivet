@@ -49,12 +49,17 @@ export class IssueController {
         description: "Project not found",
         status: HttpStatus.NOT_FOUND,
       },
+      {
+        description: "Assignee is not an organization member",
+        status: HttpStatus.UNPROCESSABLE_ENTITY,
+      },
     ],
     httpStatus: HttpStatus.CREATED,
     summary: "Create an issue",
   })
   create(@Body() dto: CreateIssueRequestDto): Promise<IssueResponseDto> {
     return this.service.createIssue({
+      assigneeId: dto.assigneeId,
       description: dto.description,
       priority: dto.priority,
       projectId: dto.projectId,
@@ -67,7 +72,7 @@ export class IssueController {
   @ApiEnvelopeResponse(IssueResponseDto, {
     auth: "required",
     description:
-      "List issues for a project with cursor pagination. Optional status filter for board columns.",
+      "List issues for a project with cursor pagination. Optional status, priority, and assignee filters (assigneeId accepts a user UUID, 'me', or 'unassigned').",
     errorResponses: [
       {
         description: "Not a member of the organization",
@@ -84,6 +89,7 @@ export class IssueController {
   })
   list(@Query() query: ListIssuesQueryDto) {
     return this.service.listIssues({
+      assigneeId: query.assigneeId,
       pagination: {
         cursor: query.cursor,
         limit: query.limit,
@@ -155,6 +161,10 @@ export class IssueController {
         description: "Issue not found",
         status: HttpStatus.NOT_FOUND,
       },
+      {
+        description: "Assignee is not an organization member",
+        status: HttpStatus.UNPROCESSABLE_ENTITY,
+      },
     ],
     httpStatus: HttpStatus.OK,
     summary: "Update an issue",
@@ -164,6 +174,7 @@ export class IssueController {
     @Body() dto: UpdateIssueRequestDto
   ): Promise<IssueResponseDto> {
     return this.service.updateIssue({
+      assigneeId: dto.assigneeId,
       description: dto.description,
       id,
       priority: dto.priority,

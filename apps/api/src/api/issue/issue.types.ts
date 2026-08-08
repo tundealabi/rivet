@@ -5,6 +5,7 @@ import type {
 import type { IssuePriority, IssueStatus } from "@rivet/shared/enums";
 
 export interface CreateIssueInput {
+  assigneeId?: string;
   description: string;
   priority: IssuePriority;
   projectId: string;
@@ -13,6 +14,7 @@ export interface CreateIssueInput {
 }
 
 export interface UpdateIssueInput {
+  assigneeId?: string | null;
   description?: string;
   id: string;
   priority?: IssuePriority;
@@ -21,6 +23,8 @@ export interface UpdateIssueInput {
 }
 
 export interface ListIssuesInput {
+  /** UUID, `me`, or `unassigned` — validated by ListIssuesQuerySchema. */
+  assigneeId?: string;
   pagination: CursorPaginationInput;
   priority?: IssuePriority;
   projectId: string;

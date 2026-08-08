@@ -3,6 +3,11 @@ import { z } from "zod";
 import { IssuePriority, IssueStatus } from "../../enums/issue.enum.js";
 
 export const CreateIssueRequestSchema = z.object({
+  assigneeId: z
+    .string()
+    .uuid()
+    .optional()
+    .describe("Optional assignee user ID; must be an org member"),
   description: z.string().default("").describe("Issue description"),
   priority: z
     .nativeEnum(IssuePriority)

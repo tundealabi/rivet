@@ -1,10 +1,19 @@
-import { Controller, Get, HttpStatus, UseGuards } from "@nestjs/common";
+import { Controller, Get, HttpStatus, Query, UseGuards } from "@nestjs/common";
 
-import { ApiEnvelopeResponse, ApiRequestUser } from "@/common/decorators";
+import {
+  ApiEnvelopeResponse,
+  ApiOrgIdHeader,
+  ApiRequestUser,
+} from "@/common/decorators";
+import { OrgMemberGuard } from "@/common/guards";
 import { AuthJwtUser } from "@/modules/auth/auth.entities";
 import { AuthUserJwtGuard } from "@/modules/auth/auth.guard";
 
-import { UserOrganizationResponseDto } from "./dto";
+import {
+  ListOrganizationMembersQueryDto,
+  OrganizationMemberResponseDto,
+  UserOrganizationResponseDto,
+} from "./dto";
 import { OrganizationService } from "./organization.service";
 
 @Controller("organizations")
@@ -22,5 +31,32 @@ export class OrganizationController {
   })
   getUserOrganizations(@ApiRequestUser() user: AuthJwtUser) {
     return this.service.getUserOrganizations(user.sub);
+  }
+
+  @Get("members")
+  @UseGuards(OrgMemberGuard)
+  @ApiOrgIdHeader()
+  @ApiEnvelopeResponse(OrganizationMemberResponseDto, {
+    auth: "required",
+    description:
+      "List members of the organization from X-ORG-ID with optional search and cursor pagination",
+    errorResponses: [
+      {
+        description: "Not a member of the organization",
+        status: HttpStatus.FORBIDDEN,
+      },
+    ],
+    httpStatus: HttpStatus.OK,
+    isArray: true,
+    summary: "List organization members",
+  })
+  listMembers(@Query() query: ListOrganizationMembersQueryDto) {
+    return this.service.listMembers({
+      pagination: {
+        cursor: query.cursor,
+        limit: query.limit,
+      },
+      q: query.q,
+    });
   }
 }

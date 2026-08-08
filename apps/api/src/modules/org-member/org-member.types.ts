@@ -26,3 +26,28 @@ export interface UserOrganizationItem {
   orgName: string;
   role: SharedOrganizationRole;
 }
+
+export interface OrgMembersListCursor {
+  createdAt: Date;
+  id: string;
+}
+
+export interface ListMembersInOrgInput {
+  after?: OrgMembersListCursor;
+  limit: number;
+  orgId: string;
+  q?: string;
+}
+
+export interface OrganizationMemberItem {
+  email: string;
+  firstName: string;
+  id: string;
+  lastName: string;
+  role: SharedOrganizationRole;
+}
+
+export interface ListMembersInOrgResult {
+  items: OrganizationMemberItem[];
+  next?: OrgMembersListCursor;
+}

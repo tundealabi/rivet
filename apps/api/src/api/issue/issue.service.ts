@@ -1,20 +1,26 @@
 import { Injectable } from "@nestjs/common";
 import type {
+  IssueAssigneeWire,
+  IssueProjectWire,
   IssueResponseWire,
   IssueSummaryResponseWire,
 } from "@rivet/shared/api";
 import { ErrorCode, ErrorMessage } from "@rivet/shared/enums";
-import { z, ZodError } from "zod";
+import { ZodError } from "zod";
 
 import { DomainError, ValidationError } from "@/common/errors";
 import { Helpers } from "@/common/helpers";
 import { TenantContextService } from "@/common/services";
 import type { PaginatedResult } from "@/common/types";
 import { DatabaseService } from "@/database/database.service";
-import { Issue } from "@/generated/prisma/client";
+import type { DbOptions } from "@/database/database.types";
+import { Project } from "@/generated/prisma/client";
 import { IssueService as IssueModuleService } from "@/modules/issue/issue.service";
+import type { IssueWithAssignee } from "@/modules/issue/issue.types";
+import { OrgMemberService } from "@/modules/org-member/org-member.service";
 import { ProjectService as ProjectModuleService } from "@/modules/project/project.service";
 
+import { IssuesListCursorSchema } from "./issue.constants";
 import {
   CreateIssueInput,
   GetIssueSummaryInput,
@@ -22,16 +28,12 @@ import {
   UpdateIssueInput,
 } from "./issue.types";
 
-const IssuesListCursorSchema = z.object({
-  createdAt: z.string().datetime(),
-  id: z.string().uuid(),
-});
-
 @Injectable()
 export class IssueService {
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly issueService: IssueModuleService,
+    private readonly orgMemberService: OrgMemberService,
     private readonly projectService: ProjectModuleService,
     private readonly tenantContext: TenantContextService
   ) {}
@@ -39,14 +41,18 @@ export class IssueService {
   async createIssue(input: CreateIssueInput): Promise<IssueResponseWire> {
     const organizationId = this.tenantContext.orgId;
 
-    const { issue, projectKey } =
-      await this.databaseService.client.$transaction(async (tx) => {
+    const { issue, project } = await this.databaseService.client.$transaction(
+      async (tx) => {
         const options = { tx };
 
         const project = await this.projectService.getActiveById(
           { id: input.projectId },
           options
         );
+
+        if (input.assigneeId) {
+          await this.assertAssigneeIsOrgMember(input.assigneeId, options);
+        }
 
         const number = await this.projectService.allocateNextIssueNumber(
           project.id,
@@ -55,6 +61,7 @@ export class IssueService {
 
         const created = await this.issueService.create(
           {
+            assigneeId: input.assigneeId,
             description: input.description,
             number,
             organizationId,
@@ -66,10 +73,11 @@ export class IssueService {
           options
         );
 
-        return { issue: created, projectKey: project.key };
-      });
+        return { issue: created, project };
+      }
+    );
 
-    return this.toResponse(issue, projectKey);
+    return this.toResponse(issue, project);
   }
 
   async getIssue(id: string): Promise<IssueResponseWire> {
@@ -95,7 +103,7 @@ export class IssueService {
       );
     }
 
-    return this.toResponse(issue, project.key);
+    return this.toResponse(issue, project);
   }
 
   async listIssues(
@@ -114,6 +122,7 @@ export class IssueService {
     }
 
     const after = this.decodeCursor(input.pagination.cursor);
+    const assigneeId = this.resolveAssigneeFilter(input.assigneeId);
 
     const result = await this.issueService.list({
       after: after
@@ -122,6 +131,7 @@ export class IssueService {
             id: after.id,
           }
         : undefined,
+      assigneeId,
       limit: input.pagination.limit,
       priority: input.priority,
       projectId: input.projectId,
@@ -130,7 +140,7 @@ export class IssueService {
 
     return Helpers.toCursorPaginatedResult(
       {
-        items: result.items.map((issue) => this.toResponse(issue, project.key)),
+        items: result.items.map((issue) => this.toResponse(issue, project)),
         nextCursor: result.next
           ? Helpers.encodePaginationCursor({
               createdAt: result.next.createdAt.toISOString(),
@@ -175,7 +185,12 @@ export class IssueService {
       id: existing.projectId,
     });
 
+    if (input.assigneeId) {
+      await this.assertAssigneeIsOrgMember(input.assigneeId);
+    }
+
     const issue = await this.issueService.update(input.id, {
+      assigneeId: input.assigneeId,
       description: input.description,
       priority: input.priority,
       status: input.status,
@@ -190,7 +205,46 @@ export class IssueService {
       );
     }
 
-    return this.toResponse(issue, project.key);
+    return this.toResponse(issue, project);
+  }
+
+  private resolveAssigneeFilter(
+    assigneeId: ListIssuesInput["assigneeId"]
+  ): string | null | undefined {
+    if (assigneeId === undefined) {
+      return undefined;
+    }
+
+    if (assigneeId === "unassigned") {
+      return null;
+    }
+
+    if (assigneeId === "me") {
+      return this.tenantContext.userId;
+    }
+
+    return assigneeId;
+  }
+
+  private async assertAssigneeIsOrgMember(
+    assigneeId: string,
+    options?: DbOptions
+  ): Promise<void> {
+    const membership = await this.orgMemberService.findByOrgAndUser(
+      {
+        orgId: this.tenantContext.orgId,
+        userId: assigneeId,
+      },
+      options
+    );
+
+    if (!membership) {
+      throw new DomainError(
+        "RULE_VIOLATION",
+        ErrorCode.ASSIGNEE_NOT_ORG_MEMBER,
+        ErrorMessage.ASSIGNEE_NOT_ORG_MEMBER
+      );
+    }
   }
 
   private decodeCursor(cursor: string | undefined) {
@@ -210,18 +264,45 @@ export class IssueService {
     }
   }
 
-  private toResponse(issue: Issue, projectKey: string): IssueResponseWire {
+  private toResponse(
+    issue: IssueWithAssignee,
+    project: Pick<Project, "id" | "key" | "name">
+  ): IssueResponseWire {
     return {
+      assignee: this.toAssignee(issue.assignee),
       createdAt: issue.createdAt.toISOString(),
       description: issue.description,
       id: issue.id,
       number: issue.number,
       priority: issue.priority as IssueResponseWire["priority"],
-      projectId: issue.projectId,
-      projectKey,
+      project: this.toProject(project),
       status: issue.status as IssueResponseWire["status"],
       title: issue.title,
       updatedAt: issue.updatedAt.toISOString(),
+    };
+  }
+
+  private toAssignee(
+    assignee: IssueWithAssignee["assignee"]
+  ): IssueAssigneeWire | null {
+    if (!assignee) {
+      return null;
+    }
+
+    return {
+      firstName: assignee.firstName,
+      id: assignee.id,
+      lastName: assignee.lastName,
+    };
+  }
+
+  private toProject(
+    project: Pick<Project, "id" | "key" | "name">
+  ): IssueProjectWire {
+    return {
+      id: project.id,
+      key: project.key,
+      name: project.name,
     };
   }
 }

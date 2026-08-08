@@ -1,6 +1,15 @@
 import { Issue, IssuePriority, IssueStatus } from "@generated/prisma";
 
+import { Prisma } from "@/generated/prisma/client";
+
+import { issueAssigneeInclude } from "./issue.constants";
+
+export type IssueWithAssignee = Prisma.IssueGetPayload<{
+  include: typeof issueAssigneeInclude;
+}>;
+
 export interface CreateIssueInput {
+  assigneeId?: string;
   description: string;
   number: number;
   organizationId: string;
@@ -11,6 +20,7 @@ export interface CreateIssueInput {
 }
 
 export interface UpdateIssueInput {
+  assigneeId?: string | null;
   description?: string;
   priority?: IssuePriority;
   status?: IssueStatus;
@@ -22,8 +32,11 @@ export interface IssuesListCursor {
   id: string;
 }
 
+export type IssueAssigneeFilter = string | null;
+
 export interface ListIssuesInput {
   after?: IssuesListCursor;
+  assigneeId?: IssueAssigneeFilter;
   limit: number;
   priority?: IssuePriority;
   projectId: string;
@@ -31,7 +44,7 @@ export interface ListIssuesInput {
 }
 
 export interface ListIssuesResult {
-  items: Issue[];
+  items: IssueWithAssignee[];
   next?: IssuesListCursor;
 }
 
@@ -57,3 +70,5 @@ export interface SummarizeIssuesResult {
   open: number;
   total: number;
 }
+
+export type { Issue };
