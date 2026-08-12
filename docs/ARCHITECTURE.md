@@ -178,7 +178,15 @@ Every response uses the same top-level shape:
 
 ## Concurrency
 
-Field-level updates by default. **Optimistic locking on `issues.status` only** via a `status_version` column - prevents silent status overwrites without blocking unrelated field edits. Conflicts return `409` / `ISSUE_STATUS_CONFLICT`.
+Field-level (partial) updates by default. High-risk issue fields use conditional writes without extra version columns on `Issue`:
+
+- **`status` / `assigneeId`** — expected-value CAS (`expectedStatus`, `expectedAssigneeId`)
+- **`description`** — expected content hash (`descriptionHash` on read, `expectedDescriptionHash` on write; hash is derived, not stored)
+- **Other fields** (e.g. `title`, `priority`) — last-write-wins
+
+Status changes also run an allowed **transition graph** check (rule violation, not conflict) - `ISSUE_STATUS_TRANSITIONS` / `isIssueStatusTransitionAllowed` in `@rivet/shared/enums`. Stale high-risk writes return `409` / `ISSUE_CONFLICT` with current server state for client resolution. Illegal transitions return `422` / `ISSUE_STATUS_TRANSITION`. Successful field writes append `IssueActivity` in the same transaction (feed / audit / conflict context).
+
+Full rationale: [ADR-0003](./adr/0003-issue-field-concurrency.md).
 
 ---
 

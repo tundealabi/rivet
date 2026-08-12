@@ -1,5 +1,9 @@
 /** Prisma model names (PascalCase) that require org scoping via CLS. */
-export const TENANT_SCOPED_MODELS = ["Issue", "Project"] as const;
+export const TENANT_SCOPED_MODELS = [
+  "Issue",
+  "IssueActivity",
+  "Project",
+] as const;
 
 export type TenantScopedModel = (typeof TENANT_SCOPED_MODELS)[number];
 

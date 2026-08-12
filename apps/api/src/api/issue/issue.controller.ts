@@ -162,6 +162,14 @@ export class IssueController {
         status: HttpStatus.NOT_FOUND,
       },
       {
+        description: "High-risk field changed since last read",
+        status: HttpStatus.CONFLICT,
+      },
+      {
+        description: "Illegal status transition",
+        status: HttpStatus.UNPROCESSABLE_ENTITY,
+      },
+      {
         description: "Assignee is not an organization member",
         status: HttpStatus.UNPROCESSABLE_ENTITY,
       },
@@ -176,6 +184,9 @@ export class IssueController {
     return this.service.updateIssue({
       assigneeId: dto.assigneeId,
       description: dto.description,
+      expectedAssigneeId: dto.expectedAssigneeId,
+      expectedDescriptionHash: dto.expectedDescriptionHash,
+      expectedStatus: dto.expectedStatus,
       id,
       priority: dto.priority,
       status: dto.status,

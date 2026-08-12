@@ -16,6 +16,9 @@ export interface CreateIssueInput {
 export interface UpdateIssueInput {
   assigneeId?: string | null;
   description?: string;
+  expectedAssigneeId?: string | null;
+  expectedDescriptionHash?: string;
+  expectedStatus?: IssueStatus;
   id: string;
   priority?: IssuePriority;
   status?: IssueStatus;

@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { IssuePriority, IssueStatus } from "../../enums/issue.enum.js";
+import { IssueDescriptionHashSchema } from "./update-issue.request.js";
 
 export const IssueAssigneeSchema = z.object({
   firstName: z.string().describe("Assignee first name"),
@@ -24,6 +25,9 @@ export const IssueResponseSchema = z.object({
   ),
   createdAt: z.string().datetime().describe("Issue creation timestamp"),
   description: z.string().describe("Issue description"),
+  descriptionHash: IssueDescriptionHashSchema.describe(
+    "SHA-256 hex digest of description for conditional updates"
+  ),
   id: z.string().uuid().describe("Issue ID"),
   number: z.number().int().positive().describe("Per-project issue number"),
   priority: z.nativeEnum(IssuePriority).describe("Issue priority"),

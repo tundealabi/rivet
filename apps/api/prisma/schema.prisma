@@ -67,6 +67,7 @@ model User {
   sessions           Session[]
   createdProjects    Project[]            @relation("ProjectCreator")
   assignedIssues     Issue[]              @relation("IssueAssignee")
+  issueActivities    IssueActivity[]      @relation("IssueActivityActor")
 
   @@map("users")
 }
@@ -98,9 +99,10 @@ model Organization {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  members  OrganizationMember[]
-  projects Project[]
-  issues   Issue[]
+  members         OrganizationMember[]
+  projects        Project[]
+  issues          Issue[]
+  issueActivities IssueActivity[]
 
   @@map("organizations")
 }
@@ -161,11 +163,43 @@ model Issue {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  activities IssueActivity[]
+
   @@unique([projectId, number])
   @@index([organizationId])
   @@index([assigneeId])
   @@index([projectId, assigneeId])
   @@map("issues")
+}
+
+enum IssueActivityField {
+  ASSIGNEE
+  DESCRIPTION
+  PRIORITY
+  STATUS
+  TITLE
+}
+
+model IssueActivity {
+  id        String             @id @default(uuid()) @db.Uuid
+  field     IssueActivityField
+  fromValue String?            @map("from_value")
+  toValue   String?            @map("to_value")
+
+  actorId String? @map("actor_id") @db.Uuid
+  actor   User?   @relation("IssueActivityActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  issueId String @map("issue_id") @db.Uuid
+  issue   Issue  @relation(fields: [issueId], references: [id], onDelete: Cascade)
+
+  organizationId String       @map("org_id") @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([issueId, createdAt])
+  @@index([organizationId])
+  @@map("issue_activities")
 }
 
 model RefreshToken {

@@ -1,22 +1,30 @@
 import { Injectable } from "@nestjs/common";
 import type {
   IssueAssigneeWire,
+  IssueConflictDetailsWire,
   IssueProjectWire,
   IssueResponseWire,
   IssueSummaryResponseWire,
 } from "@rivet/shared/api";
-import { ErrorCode, ErrorMessage } from "@rivet/shared/enums";
+import {
+  ErrorCode,
+  ErrorMessage,
+  IssueStatus as SharedIssueStatus,
+} from "@rivet/shared/enums";
 import { ZodError } from "zod";
 
 import { DomainError, ValidationError } from "@/common/errors";
 import { Helpers } from "@/common/helpers";
-import { TenantContextService } from "@/common/services";
+import { HashService, TenantContextService } from "@/common/services";
 import type { PaginatedResult } from "@/common/types";
 import { DatabaseService } from "@/database/database.service";
 import type { DbOptions } from "@/database/database.types";
 import { Project } from "@/generated/prisma/client";
 import { IssueService as IssueModuleService } from "@/modules/issue/issue.service";
-import type { IssueWithAssignee } from "@/modules/issue/issue.types";
+import type {
+  IssueWithAssignee,
+  UpdateIssueCurrent,
+} from "@/modules/issue/issue.types";
 import { OrgMemberService } from "@/modules/org-member/org-member.service";
 import { ProjectService as ProjectModuleService } from "@/modules/project/project.service";
 
@@ -32,6 +40,7 @@ import {
 export class IssueService {
   constructor(
     private readonly databaseService: DatabaseService,
+    private readonly hashService: HashService,
     private readonly issueService: IssueModuleService,
     private readonly orgMemberService: OrgMemberService,
     private readonly projectService: ProjectModuleService,
@@ -81,15 +90,7 @@ export class IssueService {
   }
 
   async getIssue(id: string): Promise<IssueResponseWire> {
-    const issue = await this.issueService.findById({ id });
-
-    if (!issue) {
-      throw new DomainError(
-        "NOT_FOUND",
-        ErrorCode.NOT_FOUND,
-        ErrorMessage.NOT_FOUND
-      );
-    }
+    const issue = await this.issueService.getById({ id });
 
     const project = await this.projectService.findById({
       id: issue.projectId,
@@ -171,16 +172,7 @@ export class IssueService {
   }
 
   async updateIssue(input: UpdateIssueInput): Promise<IssueResponseWire> {
-    const existing = await this.issueService.findById({ id: input.id });
-
-    if (!existing) {
-      throw new DomainError(
-        "NOT_FOUND",
-        ErrorCode.NOT_FOUND,
-        ErrorMessage.NOT_FOUND
-      );
-    }
-
+    const existing = await this.issueService.getById({ id: input.id });
     const project = await this.projectService.getActiveById({
       id: existing.projectId,
     });
@@ -189,19 +181,41 @@ export class IssueService {
       await this.assertAssigneeIsOrgMember(input.assigneeId);
     }
 
-    const issue = await this.issueService.update(input.id, {
+    const conflicts = this.conflicts(existing, input);
+
+    if (conflicts) {
+      throw new DomainError(
+        "CONFLICT",
+        ErrorCode.ISSUE_CONFLICT,
+        ErrorMessage.ISSUE_CONFLICT,
+        conflicts
+      );
+    }
+
+    const current = this.casCurrent(existing, input);
+    const patch = {
+      actorId: this.tenantContext.userId,
       assigneeId: input.assigneeId,
       description: input.description,
+      id: input.id,
       priority: input.priority,
       status: input.status,
       title: input.title,
-    });
+    };
+    const issue = current
+      ? await this.issueService.updateIfCurrent({ ...patch, current })
+      : await this.issueService.update(patch);
 
+    // CAS lost the race: another writer changed a pinned field after our pre-check.
     if (!issue) {
+      const latest = await this.issueService.getById({ id: input.id });
       throw new DomainError(
-        "NOT_FOUND",
-        ErrorCode.NOT_FOUND,
-        ErrorMessage.NOT_FOUND
+        "CONFLICT",
+        ErrorCode.ISSUE_CONFLICT,
+        ErrorMessage.ISSUE_CONFLICT,
+        // Prefer fields that are still stale. Snapshot if they already match again
+        // (the other writer changed a field and changed it back).
+        this.conflicts(latest, input) ?? this.conflictSnapshot(latest, input)
       );
     }
 
@@ -247,6 +261,103 @@ export class IssueService {
     }
   }
 
+  /** Current values for patched high-risk fields whose expected* no longer match. */
+  private conflicts(
+    issue: IssueWithAssignee,
+    input: UpdateIssueInput
+  ): IssueConflictDetailsWire | null {
+    const conflicts: IssueConflictDetailsWire["conflicts"] = {};
+
+    if (
+      input.status !== undefined &&
+      input.expectedStatus !== (issue.status as SharedIssueStatus)
+    ) {
+      conflicts.status = { current: issue.status as SharedIssueStatus };
+    }
+
+    if (
+      input.assigneeId !== undefined &&
+      input.expectedAssigneeId !== issue.assigneeId
+    ) {
+      conflicts.assigneeId = { current: issue.assigneeId };
+    }
+
+    if (
+      input.description !== undefined &&
+      (input.expectedDescriptionHash === undefined ||
+        !this.hashService.verifyFingerprint(
+          issue.description,
+          input.expectedDescriptionHash
+        ))
+    ) {
+      conflicts.description = {
+        current: issue.description,
+        descriptionHash: this.hashService.fingerprint(issue.description),
+      };
+    }
+
+    if (
+      conflicts.assigneeId === undefined &&
+      conflicts.description === undefined &&
+      conflicts.status === undefined
+    ) {
+      return null;
+    }
+
+    return { conflicts };
+  }
+
+  /** Current values for every patched high-risk field, whether stale or not. */
+  private conflictSnapshot(
+    issue: IssueWithAssignee,
+    input: UpdateIssueInput
+  ): IssueConflictDetailsWire {
+    const conflicts: IssueConflictDetailsWire["conflicts"] = {};
+
+    if (input.status !== undefined) {
+      conflicts.status = { current: issue.status as SharedIssueStatus };
+    }
+
+    if (input.assigneeId !== undefined) {
+      conflicts.assigneeId = { current: issue.assigneeId };
+    }
+
+    if (input.description !== undefined) {
+      conflicts.description = {
+        current: issue.description,
+        descriptionHash: this.hashService.fingerprint(issue.description),
+      };
+    }
+
+    return { conflicts };
+  }
+
+  /** Values to pin in the UPDATE WHERE for high-risk fields in this PATCH. */
+  private casCurrent(
+    issue: IssueWithAssignee,
+    input: UpdateIssueInput
+  ): UpdateIssueCurrent | undefined {
+    const current: UpdateIssueCurrent = {
+      ...(input.assigneeId !== undefined
+        ? { assigneeId: issue.assigneeId }
+        : {}),
+      ...(input.description !== undefined
+        ? { description: issue.description }
+        : {}),
+      ...(input.status !== undefined ? { status: issue.status } : {}),
+    };
+
+    if (
+      current.assigneeId === undefined &&
+      current.description === undefined &&
+      current.status === undefined
+    ) {
+      return undefined;
+    }
+
+    return current;
+  }
+
   private decodeCursor(cursor: string | undefined) {
     if (!cursor) {
       return undefined;
@@ -272,6 +383,7 @@ export class IssueService {
       assignee: this.toAssignee(issue.assignee),
       createdAt: issue.createdAt.toISOString(),
       description: issue.description,
+      descriptionHash: this.hashService.fingerprint(issue.description),
       id: issue.id,
       number: issue.number,
       priority: issue.priority as IssueResponseWire["priority"],

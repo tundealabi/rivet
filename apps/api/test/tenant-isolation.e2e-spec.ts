@@ -7,6 +7,7 @@ import type {
   ProjectDetailResponseWire,
   ProjectResponseWire,
 } from "@rivet/shared/api";
+import { ErrorCode } from "@rivet/shared/enums";
 import { ClsService } from "nestjs-cls";
 import request from "supertest";
 import type { App } from "supertest/types";
@@ -15,6 +16,7 @@ import {
   TENANT_CONTEXT_KEYS,
   type TenantContextStore,
 } from "@/common/constants/tenant-context.constants";
+import { DomainError } from "@/common/errors";
 import { AUTH_CONSTANTS } from "@/modules/auth/auth.constants";
 import { IssueService } from "@/modules/issue/issue.service";
 import { ProjectService } from "@/modules/project/project.service";
@@ -237,11 +239,11 @@ describe("Tenant isolation (e2e)", () => {
       expect(found?.id).toBe(orgAIssueId);
 
       orgAIssueTitle = `${orgAIssueTitle} module`;
-      const updated = await issueService.update(orgAIssueId, {
+      const updated = await issueService.update({
+        id: orgAIssueId,
         title: orgAIssueTitle,
       });
-      expect(updated).not.toBeNull();
-      expect(updated?.title).toBe(orgAIssueTitle);
+      expect(updated.title).toBe(orgAIssueTitle);
     });
 
     await cls.run(async () => {
@@ -252,10 +254,16 @@ describe("Tenant isolation (e2e)", () => {
       const found = await issueService.findById({ id: orgAIssueId });
       expect(found).toBeNull();
 
-      const updated = await issueService.update(orgAIssueId, {
-        title: "Cross-tenant update attempt",
+      await expect(
+        issueService.update({
+          id: orgAIssueId,
+          title: "Cross-tenant update attempt",
+        })
+      ).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        kind: "NOT_FOUND",
+        name: DomainError.name,
       });
-      expect(updated).toBeNull();
     });
   });
 });

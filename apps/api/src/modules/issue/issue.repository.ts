@@ -5,12 +5,14 @@ import { DB_PRISMA_ERROR_CODES } from "@/database/database.contants";
 import { DatabaseService } from "@/database/database.service";
 import { DbOptions } from "@/database/database.types";
 import {
+  IssueActivityCreateManyArgs,
   IssueCreateArgs,
   IssueFindFirstArgs,
   IssueFindManyArgs,
   IssueFindUniqueArgs,
   IssueGroupByArgs,
   IssueUpdateArgs,
+  IssueUpdateManyArgs,
 } from "@/generated/prisma/models";
 
 @Injectable()
@@ -60,5 +62,21 @@ export class IssueRepository {
       }
       throw err;
     }
+  }
+
+  async updateMany<T extends IssueUpdateManyArgs>(
+    args: T,
+    dbOptions?: DbOptions
+  ) {
+    const client = this.databaseService.resolveClient(dbOptions);
+    return client.issue.updateMany(args);
+  }
+
+  async createManyActivity<T extends IssueActivityCreateManyArgs>(
+    args: T,
+    dbOptions?: DbOptions
+  ) {
+    const client = this.databaseService.resolveClient(dbOptions);
+    return client.issueActivity.createMany(args);
   }
 }

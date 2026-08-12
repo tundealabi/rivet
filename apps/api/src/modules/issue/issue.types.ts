@@ -19,12 +19,24 @@ export interface CreateIssueInput {
   title: string;
 }
 
-export interface UpdateIssueInput {
+export interface UpdateIssueCurrent {
   assigneeId?: string | null;
   description?: string;
+  status?: IssueStatus;
+}
+
+export interface UpdateIssueInput {
+  actorId?: string;
+  assigneeId?: string | null;
+  description?: string;
+  id: string;
   priority?: IssuePriority;
   status?: IssueStatus;
   title?: string;
+}
+
+export interface UpdateIssueIfCurrentInput extends UpdateIssueInput {
+  current: UpdateIssueCurrent;
 }
 
 export interface IssuesListCursor {
