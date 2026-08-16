@@ -16,4 +16,11 @@ export class OrgService {
   ): Promise<Organization> {
     return this.orgRepository.create({ data: { name: input.name } }, options);
   }
+
+  async findById(
+    id: string,
+    options?: DbOptions
+  ): Promise<Organization | null> {
+    return this.orgRepository.findUnique({ where: { id } }, options);
+  }
 }

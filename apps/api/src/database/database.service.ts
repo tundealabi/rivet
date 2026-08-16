@@ -11,6 +11,7 @@ import {
 } from "@/common/constants";
 import { ENV_KEYS } from "@/common/constants";
 
+import { DB_PRISMA_ERROR_CODES } from "./database.contants";
 import { DbOptions, PlainPrismaClient } from "./database.types";
 import {
   AppPrismaClient,
@@ -48,16 +49,19 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     return this._client;
   }
 
-  isUniqueConstraintViolationError(error: Error, field: string): boolean {
+  isUniqueConstraintViolationError(error: unknown, field?: string): boolean {
     if (
       !(error instanceof Prisma.PrismaClientKnownRequestError) ||
-      error.code !== "P2002"
+      error.code !== DB_PRISMA_ERROR_CODES.UNIQUE_CONSTRAINT_VIOLATION
     ) {
       return false;
     }
 
-    const fields = this.getUniqueConstraintFields(error);
-    return fields.includes(field);
+    if (field === undefined) {
+      return true;
+    }
+
+    return this.getUniqueConstraintFields(error).includes(field);
   }
 
   resolveClient(options?: DbOptions): PlainPrismaClient {

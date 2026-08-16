@@ -28,3 +28,4 @@ Skip ADRs for small refactors, naming tweaks, or decisions already documented cl
 | [0001](./0001-dual-token-auth-with-httponly-refresh-cookie.md) | Dual-token auth with httpOnly refresh cookie                        | Accepted |
 | [0002](./0002-application-layer-tenant-isolation.md)           | Application-layer tenant isolation with CLS and Prisma extension    | Accepted |
 | [0003](./0003-issue-field-concurrency.md)                      | Issue field concurrency via expected-value CAS and description hash | Proposed |
+| [0004](./0004-async-issue-csv-export.md)                       | Async issue CSV export                                              | Proposed |

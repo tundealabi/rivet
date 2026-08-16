@@ -2,10 +2,14 @@ import { Issue, IssuePriority, IssueStatus } from "@generated/prisma";
 
 import { Prisma } from "@/generated/prisma/client";
 
-import { issueAssigneeInclude } from "./issue.constants";
+import { issueAssigneeInclude, issueExportSelect } from "./issue.constants";
 
 export type IssueWithAssignee = Prisma.IssueGetPayload<{
   include: typeof issueAssigneeInclude;
+}>;
+
+export type IssueExportRow = Prisma.IssueGetPayload<{
+  select: typeof issueExportSelect;
 }>;
 
 export interface CreateIssueInput {
@@ -54,6 +58,8 @@ export interface ListIssuesInput {
   projectId: string;
   status?: IssueStatus;
 }
+
+export type IterateIssuesForExportInput = Omit<ListIssuesInput, "after">;
 
 export interface ListIssuesResult {
   items: IssueWithAssignee[];

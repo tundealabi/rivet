@@ -4,3 +4,9 @@ export enum OrganizationRole {
   MEMBER = "MEMBER",
   VIEWER = "VIEWER",
 }
+
+export enum PlanTier {
+  FREE = "FREE",
+  PRO = "PRO",
+  TEAM = "TEAM",
+}

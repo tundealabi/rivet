@@ -1,4 +1,5 @@
 export * from "./api-cookies.decorator";
+export * from "./api-idempotency-key.decorator";
 export * from "./api-org-id.decorator";
 export * from "./api-request-user.decorator";
 export * from "./api-response.decorator";

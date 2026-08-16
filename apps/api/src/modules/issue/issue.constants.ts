@@ -9,3 +9,32 @@ export const issueAssigneeInclude = {
     },
   },
 } satisfies Prisma.IssueInclude;
+
+export const issueListOrderBy = [
+  { createdAt: "desc" },
+  { id: "desc" },
+] as const satisfies Prisma.IssueOrderByWithRelationInput[];
+
+/** CSV columns plus cursor keys. Narrower than the issue DTO include. */
+export const issueExportSelect = {
+  assignee: {
+    select: {
+      firstName: true,
+      lastName: true,
+    },
+  },
+  createdAt: true,
+  description: true,
+  id: true,
+  number: true,
+  priority: true,
+  project: {
+    select: {
+      key: true,
+      name: true,
+    },
+  },
+  status: true,
+  title: true,
+  updatedAt: true,
+} satisfies Prisma.IssueSelect;

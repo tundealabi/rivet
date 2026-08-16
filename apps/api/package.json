@@ -23,6 +23,10 @@
     "test:e2e": "dotenv -e ./src/config/envs/.env.development -- jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1111.0",
+    "@aws-sdk/lib-storage": "^3.1111.0",
+    "@aws-sdk/s3-request-presigner": "^3.1111.0",
+    "@nestjs/bullmq": "^11.0.5",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.0.1",
@@ -35,8 +39,10 @@
     "@prisma/client": "^7.8.0",
     "@rivet/shared": "workspace:*",
     "argon2": "^0.44.0",
+    "bullmq": "^6.1.1",
     "cookie-parser": "^1.4.7",
     "helmet": "^8.2.0",
+    "ioredis": "^6.0.0",
     "nestjs-cls": "^6.2.1",
     "nestjs-zod": "^5.4.0",
     "passport": "^0.7.0",
@@ -86,12 +92,35 @@
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
     "moduleNameMapper": {
+      "^(\\.{1,2}/.*)\\.js$": "$1",
       "^@/(.*)$": "<rootDir>/$1",
       "^@generated/prisma$": "<rootDir>/generated/prisma/client",
       "^@generated/prisma/(.*)$": "<rootDir>/generated/prisma/$1"
     },
+    "transformIgnorePatterns": [
+      "/node_modules/(?!(@prisma/client|\\.pnpm/@prisma\\+client))"
+    ],
     "transform": {
-      "^.+\\.(t|j)s$": "ts-jest"
+      "^.+\\.(t|j)s$": [
+        "@swc/jest",
+        {
+          "jsc": {
+            "parser": {
+              "syntax": "typescript",
+              "decorators": true,
+              "dynamicImport": true
+            },
+            "transform": {
+              "legacyDecorator": true,
+              "decoratorMetadata": true
+            },
+            "keepClassNames": true
+          },
+          "module": {
+            "type": "commonjs"
+          }
+        }
+      ]
     },
     "collectCoverageFrom": [
       "**/*.(t|j)s"

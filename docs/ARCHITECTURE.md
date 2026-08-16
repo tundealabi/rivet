@@ -56,7 +56,7 @@ modules/<name>/        Domain services + private repositories (one domain each)
 PostgreSQL
 ```
 
-`api/` is organized by **feature** (`auth`, `org`, `projects`, `issues`, `billing`, `webhooks`), not by actor type - org members differ by **role**, not by separate app surfaces.
+`api/` is organized by **feature** (`auth`, `org`, `projects`, `issues`, `exports`, `billing`, `webhooks`), not by actor type - org members differ by **role**, not by separate app surfaces.
 
 ### Module rules
 
@@ -187,6 +187,28 @@ Field-level (partial) updates by default. High-risk issue fields use conditional
 Status changes also run an allowed **transition graph** check (rule violation, not conflict) - `ISSUE_STATUS_TRANSITIONS` / `isIssueStatusTransitionAllowed` in `@rivet/shared/enums`. Stale high-risk writes return `409` / `ISSUE_CONFLICT` with current server state for client resolution. Illegal transitions return `422` / `ISSUE_STATUS_TRANSITION`. Successful field writes append `IssueActivity` in the same transaction (feed / audit / conflict context).
 
 Full rationale: [ADR-0003](./adr/0003-issue-field-concurrency.md).
+
+---
+
+## Issue CSV export
+
+Full rationale: [ADR-0004](./adr/0004-async-issue-csv-export.md).
+
+Always-async: `POST /exports` returns **202** immediately; the client polls `GET /exports/:id`. The API never streams the CSV. When the job has succeeded and the object is unexpired, `downloadUrl` is a short-lived signed GET (S3 API: MinIO locally, R2 in production).
+
+Export is multi-domain. `modules/issue` is a row source only.
+
+| Piece                | Where                           |
+| -------------------- | ------------------------------- |
+| HTTP, quota, enqueue | `api/exports`                   |
+| Row source           | `modules/issue` cursor iterator |
+| Upload + signed URL  | storage adapter used by worker  |
+
+Quota is **org-wide**, charged **on insert** (`PLAN_LIMITS.exportsPerMonth`, UTC calendar month until Stripe billing exists). `Idempotency-Key` is required. Download is requester-only. BullMQ workers set CLS before module/DB work — same path as other async entry points.
+
+Do not hold a DB transaction across enqueue or file I/O.
+
+**Verification:** `apps/api/test/export.e2e-spec.ts` — cross-org and non-requester GET 404; missing key 400; idempotent POST; quota 429; viewer can create; worker CSV quoting and formula prefix.
 
 ---
 

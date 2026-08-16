@@ -1,6 +1,10 @@
+import { PLAN_LIMITS } from "@rivet/shared/constants";
+
 import type { PlanTier } from "../members/member-types";
 import type { OrgUsageSnapshot } from "./billing-types";
 import { PLAN_DISPLAY_NAMES } from "./billing-types";
+
+export { PLAN_LIMITS };
 
 export interface PlanCardConfig {
   tier: PlanTier;
@@ -116,19 +120,6 @@ export const COMPARISON_ROWS: ComparisonRow[] = [
     team: { type: "text", value: "Coming soon" },
   },
 ];
-
-export const PLAN_LIMITS: Record<
-  PlanTier,
-  {
-    projects: number | null;
-    members: number | null;
-    exportsPerMonth: number | null;
-  }
-> = {
-  FREE: { projects: 3, members: 5, exportsPerMonth: 10 },
-  PRO: { projects: 20, members: 25, exportsPerMonth: 50 },
-  TEAM: { projects: null, members: null, exportsPerMonth: null },
-};
 
 export interface DowngradeImplication {
   label: string;

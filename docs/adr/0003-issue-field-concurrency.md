@@ -77,16 +77,14 @@ Successful field-level writes also insert append-only `IssueActivity` row(s) in 
 
 ## Alternatives considered
 
-| Option                                                    | Why not                                                                            |
-| --------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| Last-write-wins on all fields                             | Silent loss on status, assignee, and description                                   |
-| Pessimistic locking                                       | Blocks other editors; poor fit for multi-tab / multi-user web UX                   |
-| Row/document optimistic version                           | False conflicts when users edit different fields                                   |
-| Per-field version columns for status/assignee/description | Works, but adds schema we can avoid with expected value / derived hash             |
-| Expected full-text CAS for description                    | Large payloads; normalization/encoding footguns                                    |
-| CRDT/OT for description                                   | Operational complexity unjustified for this product                                |
-| Event sourcing / CQRS                                     | Architecture shift; activity log gives audit/feed without changing the write model |
-| Shared version across all high-risk fields                | Reintroduces false conflicts between status, assignee, and description             |
+| Option                                                    | Why not                                                                |
+| --------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Last-write-wins on all fields                             | Silent loss on status, assignee, and description                       |
+| Pessimistic locking                                       | Blocks other editors; poor fit for multi-tab / multi-user web UX       |
+| Row/document optimistic version                           | False conflicts when users edit unrelated fields                       |
+| Per-field version columns for status/assignee/description | Works, but adds schema we can avoid with expected value / derived hash |
+| Expected full-text CAS for description                    | Large payloads; normalization/encoding footguns                        |
+| Shared version across all high-risk fields                | Reintroduces false conflicts between status, assignee, and description |
 
 ## Consequences
 

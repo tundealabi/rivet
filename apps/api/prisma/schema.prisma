@@ -68,6 +68,7 @@ model User {
   createdProjects    Project[]            @relation("ProjectCreator")
   assignedIssues     Issue[]              @relation("IssueAssignee")
   issueActivities    IssueActivity[]      @relation("IssueActivityActor")
+  requestedExports   ExportJob[]          @relation("ExportJobRequester")
 
   @@map("users")
 }
@@ -103,6 +104,7 @@ model Organization {
   projects        Project[]
   issues          Issue[]
   issueActivities IssueActivity[]
+  exportJobs      ExportJob[]
 
   @@map("organizations")
 }
@@ -133,7 +135,8 @@ model Project {
   organizationId String       @map("org_id") @db.Uuid
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  issues Issue[]
+  issues     Issue[]
+  exportJobs ExportJob[]
 
   archivedAt DateTime? @map("archived_at")
   createdAt  DateTime  @default(now()) @map("created_at")
@@ -200,6 +203,44 @@ model IssueActivity {
   @@index([issueId, createdAt])
   @@index([organizationId])
   @@map("issue_activities")
+}
+
+enum ExportJobStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+model ExportJob {
+  id     String          @id @default(uuid()) @db.Uuid
+  status ExportJobStatus @default(QUEUED)
+
+  projectId        String         @map("project_id") @db.Uuid
+  filterStatus     IssueStatus?   @map("filter_status")
+  filterPriority   IssuePriority? @map("filter_priority")
+  filterAssigneeId String?        @map("filter_assignee_id") @db.Uuid
+  filterUnassigned Boolean        @default(false) @map("filter_unassigned")
+
+  objectKey String? @map("object_key")
+  error     String?
+
+  idempotencyKey String @map("idempotency_key")
+
+  requestedById  String       @map("requested_by_id") @db.Uuid
+  requestedBy    User         @relation("ExportJobRequester", fields: [requestedById], references: [id], onDelete: Cascade)
+  organizationId String       @map("org_id") @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project        Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  expiresAt DateTime? @map("expires_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  @@unique([organizationId, requestedById, idempotencyKey])
+  @@index([organizationId, createdAt])
+  @@index([organizationId, requestedById, createdAt])
+  @@map("export_jobs")
 }
 
 model RefreshToken {

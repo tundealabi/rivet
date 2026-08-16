@@ -13,12 +13,19 @@ import { DbOptions } from "@/database/database.types";
 import type { AppPrismaClientLike } from "@/database/tenant-prisma.extension";
 import { Prisma } from "@/generated/prisma/client";
 
-import { issueAssigneeInclude } from "./issue.constants";
+import {
+  issueAssigneeInclude,
+  issueExportSelect,
+  issueListOrderBy,
+} from "./issue.constants";
 import { IssueRepository } from "./issue.repository";
 import {
   CreateIssueInput,
   FindIssueByIdInput,
+  IssueExportRow,
+  IssuesListCursor,
   IssueWithAssignee,
+  IterateIssuesForExportInput,
   ListIssuesInput,
   ListIssuesResult,
   SummarizeIssuesInput,
@@ -103,40 +110,49 @@ export class IssueService {
     return issue;
   }
 
+  async *iterateForExport(
+    input: IterateIssuesForExportInput,
+    options?: DbOptions
+  ): AsyncGenerator<IssueExportRow> {
+    const { limit } = input;
+    let after: IssuesListCursor | undefined;
+
+    for (;;) {
+      const page = (await this.issueRepository.findMany(
+        {
+          orderBy: [...issueListOrderBy],
+          select: issueExportSelect,
+          take: limit,
+          where: this.listWhere({ ...input, after }),
+        },
+        options
+      )) as unknown as IssueExportRow[];
+
+      for (const row of page) {
+        yield row;
+      }
+
+      const last = page.at(-1);
+      if (page.length < limit || !last) {
+        return;
+      }
+
+      after = { createdAt: last.createdAt, id: last.id };
+    }
+  }
+
   async list(
     input: ListIssuesInput,
     options?: DbOptions
   ): Promise<ListIssuesResult> {
-    const { after, assigneeId, limit, priority, projectId, status } = input;
+    const { limit } = input;
 
     const issues = (await this.issueRepository.findMany(
       {
         include: issueAssigneeInclude,
-        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        orderBy: [...issueListOrderBy],
         take: limit + 1,
-        where: {
-          projectId,
-          ...(assigneeId === null
-            ? { assigneeId: null }
-            : assigneeId
-              ? { assigneeId }
-              : {}),
-          ...(priority ? { priority } : {}),
-          ...(status ? { status } : {}),
-          ...(after
-            ? {
-                OR: [
-                  { createdAt: { lt: after.createdAt } },
-                  {
-                    AND: [
-                      { createdAt: after.createdAt },
-                      { id: { lt: after.id } },
-                    ],
-                  },
-                ],
-              }
-            : {}),
-        },
+        where: this.listWhere(input),
       },
       options
     )) as IssueWithAssignee[];
@@ -304,6 +320,36 @@ export class IssueService {
     }
 
     return this.databaseService.client.$transaction((tx) => execute(tx));
+  }
+
+  private listWhere(
+    input: Pick<
+      ListIssuesInput,
+      "after" | "assigneeId" | "priority" | "projectId" | "status"
+    >
+  ): Prisma.IssueWhereInput {
+    const { after, assigneeId, priority, projectId, status } = input;
+
+    return {
+      projectId,
+      ...(assigneeId === null
+        ? { assigneeId: null }
+        : assigneeId
+          ? { assigneeId }
+          : {}),
+      ...(priority ? { priority } : {}),
+      ...(status ? { status } : {}),
+      ...(after
+        ? {
+            OR: [
+              { createdAt: { lt: after.createdAt } },
+              {
+                AND: [{ createdAt: after.createdAt }, { id: { lt: after.id } }],
+              },
+            ],
+          }
+        : {}),
+    };
   }
 
   private matchesCurrent(
