@@ -108,6 +108,23 @@ modules/<feature>/service → repository → extended Prisma client
 
 ---
 
+## Authorization (org roles)
+
+Roles are a total order (`VIEWER < MEMBER < ADMIN < OWNER`). `OrgMemberGuard` stores `orgRole` in CLS; `@RequireOrgRole(min)` + `OrgRoleGuard` reject below that rank with 403. Routes without the decorator stay any-member (reads). Role is not in the access JWT. No project-level roles.
+
+Shipped mutating floors:
+
+| Min role | Routes                                             |
+| -------- | -------------------------------------------------- |
+| MEMBER+  | Create project, create/update issue, create export |
+| ADMIN+   | Update / archive / unarchive project               |
+
+Owner is not distinct from admin on current routes (reserved for billing / delete-org). Members may edit any issue.
+
+**Verification:** `apps/api/test/rbac.e2e-spec.ts`
+
+---
+
 ## Database transactions
 
 Use transactions when multiple writes must succeed or fail together (register-with-org, invite accept, Stripe webhook idempotency + plan update). Do **not** wrap full HTTP handlers or hold transactions across Stripe, queue enqueue, or file I/O.
@@ -208,7 +225,7 @@ Quota is **org-wide**, charged **on insert** (`PLAN_LIMITS.exportsPerMonth`, UTC
 
 Do not hold a DB transaction across enqueue or file I/O.
 
-**Verification:** `apps/api/test/export.e2e-spec.ts` — cross-org and non-requester GET 404; missing key 400; idempotent POST; quota 429; viewer can create; worker CSV quoting and formula prefix.
+**Verification:** `apps/api/test/export.e2e-spec.ts` — cross-org and non-requester GET 404; missing key 400; idempotent POST; quota 429; viewer cannot create; worker CSV quoting and formula prefix.
 
 ---
 

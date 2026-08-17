@@ -10,25 +10,28 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { IDEMPOTENCY_KEY_HEADER } from "@rivet/shared/constants";
+import { OrganizationRole } from "@rivet/shared/enums";
 
 import {
   ApiEnvelopeResponse,
   ApiIdempotencyKeyHeader,
   ApiOrgIdHeader,
+  RequireOrgRole,
 } from "@/common/decorators";
-import { OrgMemberGuard } from "@/common/guards";
+import { OrgMemberGuard, OrgRoleGuard } from "@/common/guards";
 import { AuthUserJwtGuard } from "@/modules/auth/auth.guard";
 
 import { CreateExportRequestDto, ExportJobResponseDto } from "./dto";
 import { ExportService } from "./export.service";
 
 @Controller("exports")
-@UseGuards(AuthUserJwtGuard, OrgMemberGuard)
+@UseGuards(AuthUserJwtGuard, OrgMemberGuard, OrgRoleGuard)
 @ApiOrgIdHeader()
 export class ExportController {
   constructor(private readonly service: ExportService) {}
 
   @Post()
+  @RequireOrgRole(OrganizationRole.MEMBER)
   @ApiIdempotencyKeyHeader()
   @ApiEnvelopeResponse(ExportJobResponseDto, {
     auth: "required",
@@ -40,7 +43,7 @@ export class ExportController {
         status: HttpStatus.BAD_REQUEST,
       },
       {
-        description: "Not a member of the organization",
+        description: "Not a member of the organization, or role is viewer",
         status: HttpStatus.FORBIDDEN,
       },
       {

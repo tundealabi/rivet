@@ -81,15 +81,17 @@ Repositories still use thin generic adapters. The extended client is cast to `Pl
 
 ### Follow-ups
 
-- [ ] Add models to `TENANT_SCOPED_MODELS` as issues land
-- [ ] `runWithTenantContext(orgId, fn)` helper for BullMQ and Stripe webhooks
-- [ ] `@RequireOrgRole` (or similar) when project-level permissions matter
+- [x] Add models to `TENANT_SCOPED_MODELS` as issues land
+- [x] `runWithTenantContext(orgId, fn)` helper for BullMQ and Stripe webhooks
+- [x] `@RequireOrgRole` — min-role guard on mutating tenant routes (org-level only)
 - [ ] Revisit RLS if requirements change
 
 ## References
 
-- `[docs/ARCHITECTURE.md](../ARCHITECTURE.md)` - Tenant isolation
+- `[docs/ARCHITECTURE.md](../ARCHITECTURE.md)` - Tenant isolation and authorization
 - `[apps/api/src/common/guards/org-member.guard.ts](../../apps/api/src/common/guards/org-member.guard.ts)`
+- `[apps/api/src/common/guards/org-role.guard.ts](../../apps/api/src/common/guards/org-role.guard.ts)`
 - `[apps/api/src/database/tenant-prisma.extension.ts](../../apps/api/src/database/tenant-prisma.extension.ts)`
 - `[apps/api/test/tenant-isolation.e2e-spec.ts](../../apps/api/test/tenant-isolation.e2e-spec.ts)`
+- `[apps/api/test/rbac.e2e-spec.ts](../../apps/api/test/rbac.e2e-spec.ts)`
 - [ADR-0001](./0001-dual-token-auth-with-httponly-refresh-cookie.md)

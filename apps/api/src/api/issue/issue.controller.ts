@@ -10,9 +10,14 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common";
+import { OrganizationRole } from "@rivet/shared/enums";
 
-import { ApiEnvelopeResponse, ApiOrgIdHeader } from "@/common/decorators";
-import { OrgMemberGuard } from "@/common/guards";
+import {
+  ApiEnvelopeResponse,
+  ApiOrgIdHeader,
+  RequireOrgRole,
+} from "@/common/decorators";
+import { OrgMemberGuard, OrgRoleGuard } from "@/common/guards";
 import { AuthUserJwtGuard } from "@/modules/auth/auth.guard";
 
 import {
@@ -26,19 +31,20 @@ import {
 import { IssueService } from "./issue.service";
 
 @Controller("issues")
-@UseGuards(AuthUserJwtGuard, OrgMemberGuard)
+@UseGuards(AuthUserJwtGuard, OrgMemberGuard, OrgRoleGuard)
 @ApiOrgIdHeader()
 export class IssueController {
   constructor(private readonly service: IssueService) {}
 
   @Post()
+  @RequireOrgRole(OrganizationRole.MEMBER)
   @ApiEnvelopeResponse(IssueResponseDto, {
     auth: "required",
     description:
       "Create an issue in a project within the organization from X-ORG-ID",
     errorResponses: [
       {
-        description: "Not a member of the organization",
+        description: "Not a member of the organization, or role is viewer",
         status: HttpStatus.FORBIDDEN,
       },
       {
@@ -145,12 +151,13 @@ export class IssueController {
   }
 
   @Patch(":id")
+  @RequireOrgRole(OrganizationRole.MEMBER)
   @ApiEnvelopeResponse(IssueResponseDto, {
     auth: "required",
     description: "Update an issue in the organization from X-ORG-ID",
     errorResponses: [
       {
-        description: "Not a member of the organization",
+        description: "Not a member of the organization, or role is viewer",
         status: HttpStatus.FORBIDDEN,
       },
       {

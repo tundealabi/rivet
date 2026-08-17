@@ -72,22 +72,7 @@ export class ProjectService {
     return this.toResponse(project);
   }
 
-  async archiveProject(
-    id: string,
-    userId: string
-  ): Promise<ProjectResponseWire> {
-    const project = await this.projectService.findById({ id });
-
-    if (!project) {
-      throw new DomainError(
-        "NOT_FOUND",
-        ErrorCode.NOT_FOUND,
-        ErrorMessage.NOT_FOUND
-      );
-    }
-
-    this.assertIsCreator(project, userId);
-
+  async archiveProject(id: string): Promise<ProjectResponseWire> {
     const archived = await this.projectService.archive(id);
 
     if (!archived) {
@@ -101,22 +86,7 @@ export class ProjectService {
     return this.toResponse(archived);
   }
 
-  async unarchiveProject(
-    id: string,
-    userId: string
-  ): Promise<ProjectResponseWire> {
-    const project = await this.projectService.findById({ id });
-
-    if (!project) {
-      throw new DomainError(
-        "NOT_FOUND",
-        ErrorCode.NOT_FOUND,
-        ErrorMessage.NOT_FOUND
-      );
-    }
-
-    this.assertIsCreator(project, userId);
-
+  async unarchiveProject(id: string): Promise<ProjectResponseWire> {
     const unarchived = await this.projectService.unarchive(id);
 
     if (!unarchived) {
@@ -128,16 +98,6 @@ export class ProjectService {
     }
 
     return this.toResponse(unarchived);
-  }
-
-  private assertIsCreator(project: Project, userId: string): void {
-    if (project.createdById !== userId) {
-      throw new DomainError(
-        "FORBIDDEN",
-        ErrorCode.FORBIDDEN,
-        ErrorMessage.FORBIDDEN
-      );
-    }
   }
 
   private toResponse(project: Project): ProjectResponseWire {

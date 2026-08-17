@@ -10,13 +10,15 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common";
+import { OrganizationRole } from "@rivet/shared/enums";
 
 import {
   ApiEnvelopeResponse,
   ApiOrgIdHeader,
   ApiRequestUser,
+  RequireOrgRole,
 } from "@/common/decorators";
-import { OrgMemberGuard } from "@/common/guards";
+import { OrgMemberGuard, OrgRoleGuard } from "@/common/guards";
 import { AuthJwtUser } from "@/modules/auth/auth.entities";
 import { AuthUserJwtGuard } from "@/modules/auth/auth.guard";
 
@@ -30,18 +32,19 @@ import {
 import { ProjectService } from "./project.service";
 
 @Controller("projects")
-@UseGuards(AuthUserJwtGuard, OrgMemberGuard)
+@UseGuards(AuthUserJwtGuard, OrgMemberGuard, OrgRoleGuard)
 @ApiOrgIdHeader()
 export class ProjectController {
   constructor(private readonly service: ProjectService) {}
 
   @Post()
+  @RequireOrgRole(OrganizationRole.MEMBER)
   @ApiEnvelopeResponse(ProjectResponseDto, {
     auth: "required",
     description: "Create a project in the organization from X-ORG-ID",
     errorResponses: [
       {
-        description: "Not a member of the organization",
+        description: "Not a member of the organization, or role is viewer",
         status: HttpStatus.FORBIDDEN,
       },
     ],
@@ -106,17 +109,14 @@ export class ProjectController {
   }
 
   @Patch(":id/archive")
+  @RequireOrgRole(OrganizationRole.ADMIN)
   @ApiEnvelopeResponse(ProjectResponseDto, {
     auth: "required",
     description:
-      "Archive a project. Only the project creator can archive. No-op if already archived.",
+      "Archive a project. Requires admin or owner. No-op if already archived.",
     errorResponses: [
       {
-        description: "Not a member of the organization",
-        status: HttpStatus.FORBIDDEN,
-      },
-      {
-        description: "Not the project creator",
+        description: "Not a member of the organization, or role is below admin",
         status: HttpStatus.FORBIDDEN,
       },
       {
@@ -127,25 +127,19 @@ export class ProjectController {
     httpStatus: HttpStatus.OK,
     summary: "Archive a project",
   })
-  archive(
-    @ApiRequestUser() user: AuthJwtUser,
-    @Param("id", ParseUUIDPipe) id: string
-  ): Promise<ProjectResponseDto> {
-    return this.service.archiveProject(id, user.sub);
+  archive(@Param("id", ParseUUIDPipe) id: string): Promise<ProjectResponseDto> {
+    return this.service.archiveProject(id);
   }
 
   @Patch(":id/unarchive")
+  @RequireOrgRole(OrganizationRole.ADMIN)
   @ApiEnvelopeResponse(ProjectResponseDto, {
     auth: "required",
     description:
-      "Unarchive a project. Only the project creator can unarchive. No-op if already active.",
+      "Unarchive a project. Requires admin or owner. No-op if already active.",
     errorResponses: [
       {
-        description: "Not a member of the organization",
-        status: HttpStatus.FORBIDDEN,
-      },
-      {
-        description: "Not the project creator",
+        description: "Not a member of the organization, or role is below admin",
         status: HttpStatus.FORBIDDEN,
       },
       {
@@ -157,19 +151,19 @@ export class ProjectController {
     summary: "Unarchive a project",
   })
   unarchive(
-    @ApiRequestUser() user: AuthJwtUser,
     @Param("id", ParseUUIDPipe) id: string
   ): Promise<ProjectResponseDto> {
-    return this.service.unarchiveProject(id, user.sub);
+    return this.service.unarchiveProject(id);
   }
 
   @Patch(":id")
+  @RequireOrgRole(OrganizationRole.ADMIN)
   @ApiEnvelopeResponse(ProjectResponseDto, {
     auth: "required",
     description: "Update a project in the organization from X-ORG-ID",
     errorResponses: [
       {
-        description: "Not a member of the organization",
+        description: "Not a member of the organization, or role is below admin",
         status: HttpStatus.FORBIDDEN,
       },
       {

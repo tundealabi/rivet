@@ -186,17 +186,16 @@ describe("Issue CSV export (e2e)", () => {
     expect(count).toBe(1);
   });
 
-  it("allows a viewer to POST an export", async () => {
-    const created = await createExport(
-      viewer,
-      projectId,
-      uniqueKey("viewer"),
-      owner.orgId
-    );
+  it("rejects a viewer POST with 403", async () => {
+    const res = await request(app.getHttpServer())
+      .post(`${API_PREFIX}/exports`)
+      .set(authHeaders(viewer, owner.orgId))
+      .set(IDEMPOTENCY_KEY_HEADER, uniqueKey("viewer"))
+      .send({ projectId })
+      .expect(403);
 
-    expect(created.id).toBeDefined();
-    expect(created.downloadUrl).toBeNull();
-    expect(created.status).toBe(ExportJobStatus.QUEUED);
+    const body = res.body as ApiGeneralErrorResponseWire;
+    expect(body.error.code).toBe(ErrorCode.FORBIDDEN);
   });
 
   it("returns 429 when the org is over the monthly export quota", async () => {

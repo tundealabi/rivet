@@ -3,7 +3,7 @@ import { ConfigModule } from "@nestjs/config";
 import { ThrottlerModule } from "@nestjs/throttler";
 import { ClsModule } from "nestjs-cls";
 
-import { OrgMemberGuard } from "@/common/guards";
+import { OrgMemberGuard, OrgRoleGuard } from "@/common/guards";
 import {
   HashService,
   TenantContextService,
@@ -45,12 +45,19 @@ import { OrgMemberModule } from "@/modules/org-member/org-member.module";
     }),
     OrgMemberModule,
   ],
-  providers: [HashService, TokenService, TenantContextService, OrgMemberGuard],
+  providers: [
+    HashService,
+    TokenService,
+    TenantContextService,
+    OrgMemberGuard,
+    OrgRoleGuard,
+  ],
   exports: [
     HashService,
     TokenService,
     TenantContextService,
     OrgMemberGuard,
+    OrgRoleGuard,
     OrgMemberModule,
   ],
 })
