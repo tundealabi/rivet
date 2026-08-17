@@ -1,6 +1,8 @@
 import { Injectable } from "@nestjs/common";
 import type {
   IssueAssigneeWire,
+  IssueCommentAuthorWire,
+  IssueCommentResponseWire,
   IssueConflictDetailsWire,
   IssueProjectWire,
   IssueResponseWire,
@@ -9,7 +11,9 @@ import type {
 import {
   ErrorCode,
   ErrorMessage,
+  hasMinOrgRole,
   IssueStatus as SharedIssueStatus,
+  OrganizationRole,
 } from "@rivet/shared/enums";
 import { ZodError } from "zod";
 
@@ -22,17 +26,26 @@ import type { DbOptions } from "@/database/database.types";
 import { Project } from "@/generated/prisma/client";
 import { IssueService as IssueModuleService } from "@/modules/issue/issue.service";
 import type {
+  IssueCommentWithAuthor,
   IssueWithAssignee,
   UpdateIssueCurrent,
 } from "@/modules/issue/issue.types";
 import { OrgMemberService } from "@/modules/org-member/org-member.service";
 import { ProjectService as ProjectModuleService } from "@/modules/project/project.service";
 
-import { IssuesListCursorSchema } from "./issue.constants";
 import {
+  COMMENT_RATE_LIMIT_MAX,
+  COMMENT_RATE_LIMIT_WINDOW_MS,
+  IssuesListCursorSchema,
+} from "./issue.constants";
+import {
+  CreateIssueCommentInput,
   CreateIssueInput,
+  DeleteIssueCommentInput,
   GetIssueSummaryInput,
+  ListIssueCommentsInput,
   ListIssuesInput,
+  UpdateIssueCommentInput,
   UpdateIssueInput,
 } from "./issue.types";
 
@@ -220,6 +233,133 @@ export class IssueService {
     }
 
     return this.toResponse(issue, project);
+  }
+
+  async createComment(
+    input: CreateIssueCommentInput
+  ): Promise<IssueCommentResponseWire> {
+    const issue = await this.issueService.getById({ id: input.issueId });
+    await this.projectService.getActiveById({ id: issue.projectId });
+    await this.assertCommentRateLimit();
+
+    const comment = await this.issueService.createComment({
+      authorId: this.tenantContext.userId,
+      body: input.body,
+      issueId: issue.id,
+      organizationId: this.tenantContext.orgId,
+    });
+
+    return this.toCommentResponse(comment);
+  }
+
+  async listComments(
+    input: ListIssueCommentsInput
+  ): Promise<PaginatedResult<IssueCommentResponseWire>> {
+    await this.issueService.getById({ id: input.issueId });
+
+    const after = this.decodeCursor(input.pagination.cursor);
+
+    const result = await this.issueService.listComments({
+      after: after
+        ? {
+            createdAt: new Date(after.createdAt),
+            id: after.id,
+          }
+        : undefined,
+      issueId: input.issueId,
+      limit: input.pagination.limit,
+    });
+
+    return Helpers.toCursorPaginatedResult(
+      {
+        items: result.items.map((comment) => this.toCommentResponse(comment)),
+        nextCursor: result.next
+          ? Helpers.encodePaginationCursor({
+              createdAt: result.next.createdAt.toISOString(),
+              id: result.next.id,
+            })
+          : null,
+      },
+      input.pagination
+    );
+  }
+
+  async updateComment(
+    input: UpdateIssueCommentInput
+  ): Promise<IssueCommentResponseWire> {
+    const issue = await this.issueService.getById({ id: input.issueId });
+    await this.projectService.getActiveById({ id: issue.projectId });
+
+    const existing = await this.issueService.getCommentById({
+      id: input.commentId,
+      issueId: issue.id,
+    });
+    this.assertCanMutateComment(existing);
+
+    const comment = await this.issueService.updateComment({
+      body: input.body,
+      id: input.commentId,
+      issueId: issue.id,
+    });
+
+    return this.toCommentResponse(comment);
+  }
+
+  async deleteComment(
+    input: DeleteIssueCommentInput
+  ): Promise<IssueCommentResponseWire> {
+    const issue = await this.issueService.getById({ id: input.issueId });
+    await this.projectService.getActiveById({ id: issue.projectId });
+
+    const existing = await this.issueService.getCommentById({
+      id: input.commentId,
+      issueId: issue.id,
+    });
+    this.assertCanMutateComment(existing);
+
+    const comment = await this.issueService.deleteComment({
+      id: input.commentId,
+      issueId: issue.id,
+    });
+
+    return this.toCommentResponse(comment);
+  }
+
+  private async assertCommentRateLimit(): Promise<void> {
+    const createdAtGte = new Date(Date.now() - COMMENT_RATE_LIMIT_WINDOW_MS);
+    const recentCount = await this.issueService.countCommentsByAuthorSince({
+      authorId: this.tenantContext.userId,
+      createdAtGte,
+    });
+
+    if (recentCount >= COMMENT_RATE_LIMIT_MAX) {
+      throw new DomainError(
+        "TOO_MANY_REQUESTS",
+        ErrorCode.COMMENT_RATE_LIMIT_EXCEEDED,
+        ErrorMessage.COMMENT_RATE_LIMIT_EXCEEDED
+      );
+    }
+  }
+
+  private assertCanMutateComment(comment: IssueCommentWithAuthor): void {
+    if (comment.authorId === this.tenantContext.userId) {
+      return;
+    }
+
+    if (
+      hasMinOrgRole(
+        this.tenantContext.orgRole as OrganizationRole,
+        OrganizationRole.ADMIN
+      )
+    ) {
+      return;
+    }
+
+    throw new DomainError(
+      "FORBIDDEN",
+      ErrorCode.FORBIDDEN,
+      ErrorMessage.FORBIDDEN
+    );
   }
 
   private resolveAssigneeFilter(
@@ -415,6 +555,32 @@ export class IssueService {
       id: project.id,
       key: project.key,
       name: project.name,
+    };
+  }
+
+  private toCommentResponse(
+    comment: IssueCommentWithAuthor
+  ): IssueCommentResponseWire {
+    return {
+      author: this.toCommentAuthor(comment.author),
+      body: comment.body,
+      createdAt: comment.createdAt.toISOString(),
+      id: comment.id,
+      updatedAt: comment.updatedAt.toISOString(),
+    };
+  }
+
+  private toCommentAuthor(
+    author: IssueCommentWithAuthor["author"]
+  ): IssueCommentAuthorWire | null {
+    if (!author) {
+      return null;
+    }
+
+    return {
+      firstName: author.firstName,
+      id: author.id,
+      lastName: author.lastName,
     };
   }
 }

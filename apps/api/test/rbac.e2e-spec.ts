@@ -2,7 +2,9 @@ import { OrganizationRole } from "@generated/prisma";
 import type { INestApplication } from "@nestjs/common";
 import type {
   ApiGeneralErrorResponseWire,
+  ApiPaginatedSuccessResponseWire,
   ApiSuccessResponseWire,
+  IssueCommentResponseWire,
   IssueResponseWire,
   ProjectDetailResponseWire,
   ProjectResponseWire,
@@ -20,6 +22,7 @@ import {
   type RegisteredUser,
   registerLoginAndGetOrg,
 } from "./helpers/fixtures/auth";
+import { createIssueComment } from "./helpers/fixtures/comment";
 import { createIssue } from "./helpers/fixtures/issue";
 import { addOrgMember } from "./helpers/fixtures/org-member";
 import { createProject } from "./helpers/fixtures/project";
@@ -269,6 +272,123 @@ describe("RBAC (e2e)", () => {
           .send({ projectId })
       );
     });
+  });
+
+  describe("comments", () => {
+    it("lets a viewer list comments and forbids create, edit, and delete", async () => {
+      const created = await createIssueComment(
+        app,
+        owner.accessToken,
+        owner.orgId,
+        issueId,
+        "Owner comment"
+      );
+
+      const listed = await request(app.getHttpServer())
+        .get(`${API_PREFIX}/issues/${issueId}/comments`)
+        .set(authHeaders(viewer))
+        .expect(200);
+
+      const listedBody =
+        listed.body as ApiPaginatedSuccessResponseWire<IssueCommentResponseWire>;
+      expect(listedBody.data.some((comment) => comment.id === created.id)).toBe(
+        true
+      );
+
+      await expectForbidden(
+        request(app.getHttpServer())
+          .post(`${API_PREFIX}/issues/${issueId}/comments`)
+          .set(authHeaders(viewer))
+          .send({ body: "Viewer should not comment" })
+      );
+
+      await expectForbidden(
+        request(app.getHttpServer())
+          .patch(`${API_PREFIX}/issues/${issueId}/comments/${created.id}`)
+          .set(authHeaders(viewer))
+          .send({ body: "Hijacked by viewer" })
+      );
+
+      await expectForbidden(
+        request(app.getHttpServer())
+          .delete(`${API_PREFIX}/issues/${issueId}/comments/${created.id}`)
+          .set(authHeaders(viewer))
+      );
+    }, 30_000);
+
+    it("lets a member create and edit their own comment, but not another member's", async () => {
+      const ownerComment = await createIssueComment(
+        app,
+        owner.accessToken,
+        owner.orgId,
+        issueId,
+        "Owner-authored comment"
+      );
+
+      const created = await request(app.getHttpServer())
+        .post(`${API_PREFIX}/issues/${issueId}/comments`)
+        .set(authHeaders(member))
+        .send({ body: "Member comment" })
+        .expect(201);
+
+      const createdBody =
+        created.body as ApiSuccessResponseWire<IssueCommentResponseWire>;
+      expect(createdBody.data.body).toBe("Member comment");
+
+      const updated = await request(app.getHttpServer())
+        .patch(
+          `${API_PREFIX}/issues/${issueId}/comments/${createdBody.data.id}`
+        )
+        .set(authHeaders(member))
+        .send({ body: "Member edited" })
+        .expect(200);
+
+      const updatedBody =
+        updated.body as ApiSuccessResponseWire<IssueCommentResponseWire>;
+      expect(updatedBody.data.body).toBe("Member edited");
+
+      await expectForbidden(
+        request(app.getHttpServer())
+          .patch(`${API_PREFIX}/issues/${issueId}/comments/${ownerComment.id}`)
+          .set(authHeaders(member))
+          .send({ body: "Hijacked by member" })
+      );
+
+      await expectForbidden(
+        request(app.getHttpServer())
+          .delete(`${API_PREFIX}/issues/${issueId}/comments/${ownerComment.id}`)
+          .set(authHeaders(member))
+      );
+    }, 30_000);
+
+    it("lets an admin edit and delete another member's comment", async () => {
+      const memberComment = await createIssueComment(
+        app,
+        member.accessToken,
+        owner.orgId,
+        issueId,
+        "Member comment for admin to moderate"
+      );
+
+      const updated = await request(app.getHttpServer())
+        .patch(`${API_PREFIX}/issues/${issueId}/comments/${memberComment.id}`)
+        .set(authHeaders(admin))
+        .send({ body: "Edited by admin" })
+        .expect(200);
+
+      const updatedBody =
+        updated.body as ApiSuccessResponseWire<IssueCommentResponseWire>;
+      expect(updatedBody.data.body).toBe("Edited by admin");
+
+      const deleted = await request(app.getHttpServer())
+        .delete(`${API_PREFIX}/issues/${issueId}/comments/${memberComment.id}`)
+        .set(authHeaders(admin))
+        .expect(200);
+
+      const deletedBody =
+        deleted.body as ApiSuccessResponseWire<IssueCommentResponseWire>;
+      expect(deletedBody.data.id).toBe(memberComment.id);
+    }, 30_000);
   });
 
   function authHeaders(user: RegisteredUser) {

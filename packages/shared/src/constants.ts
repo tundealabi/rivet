@@ -12,6 +12,8 @@ export const REGEX_PASSWORD =
 export const IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
 export const IDEMPOTENCY_KEY_MAX_LENGTH = 256;
 
+export const COMMENT_BODY_MAX_LENGTH = 10_000;
+
 export interface PlanLimits {
   exportsPerMonth: number | null;
   members: number | null;

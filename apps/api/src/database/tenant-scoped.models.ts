@@ -3,6 +3,7 @@ export const TENANT_SCOPED_MODELS = [
   "ExportJob",
   "Issue",
   "IssueActivity",
+  "IssueComment",
   "Project",
 ] as const;
 

@@ -15,21 +15,30 @@ import { Prisma } from "@/generated/prisma/client";
 
 import {
   issueAssigneeInclude,
+  issueCommentAuthorInclude,
+  issueCommentListOrderBy,
   issueExportSelect,
   issueListOrderBy,
 } from "./issue.constants";
 import { IssueRepository } from "./issue.repository";
 import {
+  CountIssueCommentsByAuthorSinceInput,
+  CreateIssueCommentInput,
   CreateIssueInput,
   FindIssueByIdInput,
+  FindIssueCommentInput,
+  IssueCommentWithAuthor,
   IssueExportRow,
   IssuesListCursor,
   IssueWithAssignee,
   IterateIssuesForExportInput,
+  ListIssueCommentsInput,
+  ListIssueCommentsResult,
   ListIssuesInput,
   ListIssuesResult,
   SummarizeIssuesInput,
   SummarizeIssuesResult,
+  UpdateIssueCommentInput,
   UpdateIssueCurrent,
   UpdateIssueIfCurrentInput,
   UpdateIssueInput,
@@ -320,6 +329,175 @@ export class IssueService {
     }
 
     return this.databaseService.client.$transaction((tx) => execute(tx));
+  }
+
+  async createComment(
+    input: CreateIssueCommentInput,
+    options?: DbOptions
+  ): Promise<IssueCommentWithAuthor> {
+    return this.issueRepository.createComment(
+      {
+        data: {
+          authorId: input.authorId,
+          body: input.body,
+          issueId: input.issueId,
+          organizationId: input.organizationId,
+        },
+        include: issueCommentAuthorInclude,
+      },
+      options
+    ) as Promise<IssueCommentWithAuthor>;
+  }
+
+  async findCommentById(
+    input: FindIssueCommentInput,
+    options?: DbOptions
+  ): Promise<IssueCommentWithAuthor | null> {
+    return this.issueRepository.findFirstComment(
+      {
+        include: issueCommentAuthorInclude,
+        where: { id: input.id, issueId: input.issueId },
+      },
+      options
+    ) as Promise<IssueCommentWithAuthor | null>;
+  }
+
+  async getCommentById(
+    input: FindIssueCommentInput,
+    options?: DbOptions
+  ): Promise<IssueCommentWithAuthor> {
+    const comment = await this.findCommentById(input, options);
+
+    if (!comment) {
+      throw new DomainError(
+        "NOT_FOUND",
+        ErrorCode.NOT_FOUND,
+        ErrorMessage.NOT_FOUND
+      );
+    }
+
+    return comment;
+  }
+
+  async listComments(
+    input: ListIssueCommentsInput,
+    options?: DbOptions
+  ): Promise<ListIssueCommentsResult> {
+    const { limit } = input;
+
+    const comments = (await this.issueRepository.findManyComment(
+      {
+        include: issueCommentAuthorInclude,
+        orderBy: [...issueCommentListOrderBy],
+        take: limit + 1,
+        where: this.commentListWhere(input),
+      },
+      options
+    )) as IssueCommentWithAuthor[];
+
+    const hasMore = comments.length > limit;
+    const items = hasMore ? comments.slice(0, limit) : comments;
+    const lastItem = items.at(-1);
+
+    return {
+      items,
+      next:
+        hasMore && lastItem
+          ? {
+              createdAt: lastItem.createdAt,
+              id: lastItem.id,
+            }
+          : undefined,
+    };
+  }
+
+  async countCommentsByAuthorSince(
+    input: CountIssueCommentsByAuthorSinceInput,
+    options?: DbOptions
+  ): Promise<number> {
+    return this.issueRepository.countComment(
+      {
+        where: {
+          authorId: input.authorId,
+          createdAt: { gte: input.createdAtGte },
+        },
+      },
+      options
+    );
+  }
+
+  async updateComment(
+    input: UpdateIssueCommentInput,
+    options?: DbOptions
+  ): Promise<IssueCommentWithAuthor> {
+    await this.getCommentById(
+      { id: input.id, issueId: input.issueId },
+      options
+    );
+
+    const updated = await this.issueRepository.updateComment(
+      {
+        data: { body: input.body },
+        include: issueCommentAuthorInclude,
+        where: { id: input.id },
+      },
+      options
+    );
+
+    if (!updated) {
+      throw new DomainError(
+        "NOT_FOUND",
+        ErrorCode.NOT_FOUND,
+        ErrorMessage.NOT_FOUND
+      );
+    }
+
+    return updated as IssueCommentWithAuthor;
+  }
+
+  async deleteComment(
+    input: FindIssueCommentInput,
+    options?: DbOptions
+  ): Promise<IssueCommentWithAuthor> {
+    const existing = await this.getCommentById(input, options);
+
+    const deleted = await this.issueRepository.deleteComment(
+      {
+        include: issueCommentAuthorInclude,
+        where: { id: input.id },
+      },
+      options
+    );
+
+    if (!deleted) {
+      throw new DomainError(
+        "NOT_FOUND",
+        ErrorCode.NOT_FOUND,
+        ErrorMessage.NOT_FOUND
+      );
+    }
+
+    return existing;
+  }
+
+  private commentListWhere(
+    input: Pick<ListIssueCommentsInput, "after" | "issueId">
+  ): Prisma.IssueCommentWhereInput {
+    const { after, issueId } = input;
+
+    return {
+      issueId,
+      ...(after
+        ? {
+            OR: [
+              { createdAt: { gt: after.createdAt } },
+              {
+                AND: [{ createdAt: after.createdAt }, { id: { gt: after.id } }],
+              },
+            ],
+          }
+        : {}),
+    };
   }
 
   private listWhere(

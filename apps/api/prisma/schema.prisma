@@ -68,6 +68,7 @@ model User {
   createdProjects    Project[]            @relation("ProjectCreator")
   assignedIssues     Issue[]              @relation("IssueAssignee")
   issueActivities    IssueActivity[]      @relation("IssueActivityActor")
+  authoredComments   IssueComment[]       @relation("IssueCommentAuthor")
   requestedExports   ExportJob[]          @relation("ExportJobRequester")
 
   @@map("users")
@@ -104,6 +105,7 @@ model Organization {
   projects        Project[]
   issues          Issue[]
   issueActivities IssueActivity[]
+  issueComments   IssueComment[]
   exportJobs      ExportJob[]
 
   @@map("organizations")
@@ -167,6 +169,7 @@ model Issue {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   activities IssueActivity[]
+  comments   IssueComment[]
 
   @@unique([projectId, number])
   @@index([organizationId])
@@ -203,6 +206,27 @@ model IssueActivity {
   @@index([issueId, createdAt])
   @@index([organizationId])
   @@map("issue_activities")
+}
+
+model IssueComment {
+  id   String @id @default(uuid()) @db.Uuid
+  body String
+
+  authorId String? @map("author_id") @db.Uuid
+  author   User?   @relation("IssueCommentAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+
+  issueId String @map("issue_id") @db.Uuid
+  issue   Issue  @relation(fields: [issueId], references: [id], onDelete: Cascade)
+
+  organizationId String       @map("org_id") @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([issueId, createdAt])
+  @@index([organizationId])
+  @@map("issue_comments")
 }
 
 enum ExportJobStatus {

@@ -114,12 +114,12 @@ Roles are a total order (`VIEWER < MEMBER < ADMIN < OWNER`). `OrgMemberGuard` st
 
 Shipped mutating floors:
 
-| Min role | Routes                                             |
-| -------- | -------------------------------------------------- |
-| MEMBER+  | Create project, create/update issue, create export |
-| ADMIN+   | Update / archive / unarchive project               |
+| Min role | Routes                                                             |
+| -------- | ------------------------------------------------------------------ |
+| MEMBER+  | Create project, create/update issue, create export, create comment |
+| ADMIN+   | Update / archive / unarchive project                               |
 
-Owner is not distinct from admin on current routes (reserved for billing / delete-org). Members may edit any issue.
+Owner is not distinct from admin on current routes (reserved for billing / delete-org). Members may edit any issue. Comment edit/delete are `MEMBER+` at the route, then **author or ADMIN+** in the service.
 
 **Verification:** `apps/api/test/rbac.e2e-spec.ts`
 
@@ -204,6 +204,16 @@ Field-level (partial) updates by default. High-risk issue fields use conditional
 Status changes also run an allowed **transition graph** check (rule violation, not conflict) - `ISSUE_STATUS_TRANSITIONS` / `isIssueStatusTransitionAllowed` in `@rivet/shared/enums`. Stale high-risk writes return `409` / `ISSUE_CONFLICT` with current server state for client resolution. Illegal transitions return `422` / `ISSUE_STATUS_TRANSITION`. Successful field writes append `IssueActivity` in the same transaction (feed / audit / conflict context).
 
 Full rationale: [ADR-0003](./adr/0003-issue-field-concurrency.md).
+
+---
+
+## Issue comments
+
+Comments live in the **issues** module and are never queried independently of an issue. Nested routes only (`/issues/:id/comments`); `GET /issues/:id` does not embed comments.
+
+Create is `MEMBER+`. List is any org member (including viewer). Edit/delete: `MEMBER+` at the route, then author or `ADMIN+` in the service. Create is burst-limited per author (`COMMENT_RATE_LIMIT_MAX` in `api/issue`, 10s window). Archived projects reject comment writes (`409` / `PROJECT_ARCHIVED`).
+
+**Verification:** `apps/api/test/issue-comments.e2e-spec.ts`, comment cases in `rbac.e2e-spec.ts` and `tenant-isolation.e2e-spec.ts`.
 
 ---
 

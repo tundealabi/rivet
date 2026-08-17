@@ -2,10 +2,18 @@ import { Issue, IssuePriority, IssueStatus } from "@generated/prisma";
 
 import { Prisma } from "@/generated/prisma/client";
 
-import { issueAssigneeInclude, issueExportSelect } from "./issue.constants";
+import {
+  issueAssigneeInclude,
+  issueCommentAuthorInclude,
+  issueExportSelect,
+} from "./issue.constants";
 
 export type IssueWithAssignee = Prisma.IssueGetPayload<{
   include: typeof issueAssigneeInclude;
+}>;
+
+export type IssueCommentWithAuthor = Prisma.IssueCommentGetPayload<{
+  include: typeof issueCommentAuthorInclude;
 }>;
 
 export type IssueExportRow = Prisma.IssueGetPayload<{
@@ -68,6 +76,40 @@ export interface ListIssuesResult {
 
 export interface FindIssueByIdInput {
   id: string;
+}
+
+export interface CreateIssueCommentInput {
+  authorId: string;
+  body: string;
+  issueId: string;
+  organizationId: string;
+}
+
+export interface FindIssueCommentInput {
+  id: string;
+  issueId: string;
+}
+
+export interface UpdateIssueCommentInput {
+  body: string;
+  id: string;
+  issueId: string;
+}
+
+export interface ListIssueCommentsInput {
+  after?: IssuesListCursor;
+  issueId: string;
+  limit: number;
+}
+
+export interface ListIssueCommentsResult {
+  items: IssueCommentWithAuthor[];
+  next?: IssuesListCursor;
+}
+
+export interface CountIssueCommentsByAuthorSinceInput {
+  authorId: string;
+  createdAtGte: Date;
 }
 
 export interface SummarizeIssuesInput {

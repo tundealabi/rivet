@@ -4,8 +4,14 @@ import { PrismaClientKnownRequestError } from "@prisma/client/runtime/client";
 import { DB_PRISMA_ERROR_CODES } from "@/database/database.contants";
 import { DatabaseService } from "@/database/database.service";
 import { DbOptions } from "@/database/database.types";
+import { Prisma } from "@/generated/prisma/client";
 import {
   IssueActivityCreateManyArgs,
+  IssueCommentCreateArgs,
+  IssueCommentDeleteArgs,
+  IssueCommentFindFirstArgs,
+  IssueCommentFindManyArgs,
+  IssueCommentUpdateArgs,
   IssueCreateArgs,
   IssueFindFirstArgs,
   IssueFindManyArgs,
@@ -78,5 +84,71 @@ export class IssueRepository {
   ) {
     const client = this.databaseService.resolveClient(dbOptions);
     return client.issueActivity.createMany(args);
+  }
+
+  async createComment<T extends IssueCommentCreateArgs>(
+    args: T,
+    dbOptions?: DbOptions
+  ) {
+    const client = this.databaseService.resolveClient(dbOptions);
+    return client.issueComment.create(args);
+  }
+
+  async countComment(
+    args: { where: Prisma.IssueCommentWhereInput },
+    dbOptions?: DbOptions
+  ) {
+    const client = this.databaseService.resolveClient(dbOptions);
+    return client.issueComment.count(args);
+  }
+
+  async findFirstComment<T extends IssueCommentFindFirstArgs>(
+    args: T,
+    dbOptions?: DbOptions
+  ) {
+    const client = this.databaseService.resolveClient(dbOptions);
+    return client.issueComment.findFirst(args);
+  }
+
+  async findManyComment<T extends IssueCommentFindManyArgs>(
+    args?: T,
+    dbOptions?: DbOptions
+  ) {
+    const client = this.databaseService.resolveClient(dbOptions);
+    return client.issueComment.findMany(args);
+  }
+
+  async updateComment<T extends IssueCommentUpdateArgs>(
+    args: T,
+    dbOptions?: DbOptions
+  ) {
+    try {
+      const client = this.databaseService.resolveClient(dbOptions);
+      return await client.issueComment.update(args);
+    } catch (err) {
+      if (err instanceof PrismaClientKnownRequestError) {
+        if (err.code === DB_PRISMA_ERROR_CODES.NOT_FOUND) {
+          return null;
+        }
+      }
+      throw err;
+    }
+  }
+
+  async deleteComment<T extends IssueCommentDeleteArgs>(
+    args: T,
+    dbOptions?: DbOptions
+  ) {
+    try {
+      const client = this.databaseService.resolveClient(dbOptions);
+      return await client.issueComment.delete(args);
+    } catch (err) {
+      if (err instanceof PrismaClientKnownRequestError) {
+        if (err.code === DB_PRISMA_ERROR_CODES.NOT_FOUND) {
+          return null;
+        }
+      }
+      throw err;
+    }
   }
 }

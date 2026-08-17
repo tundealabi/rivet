@@ -2,10 +2,15 @@ import { IssuePriority, IssueStatus } from "@generated/prisma";
 
 import { DatabaseService } from "@/database/database.service";
 
-import { issueExportSelect, issueListOrderBy } from "./issue.constants";
+import {
+  issueCommentAuthorInclude,
+  issueCommentListOrderBy,
+  issueExportSelect,
+  issueListOrderBy,
+} from "./issue.constants";
 import { IssueRepository } from "./issue.repository";
 import { IssueService } from "./issue.service";
-import type { IssueExportRow } from "./issue.types";
+import type { IssueCommentWithAuthor, IssueExportRow } from "./issue.types";
 
 function exportRow(
   overrides: Partial<IssueExportRow> & Pick<IssueExportRow, "id">
@@ -136,3 +141,103 @@ describe("IssueService.iterateForExport", () => {
     });
   });
 });
+
+describe("IssueService.listComments", () => {
+  it("pages oldest-first with the comment keyset", async () => {
+    const pageSize = 2;
+    const page1 = [
+      commentRow({
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        id: "c-001",
+      }),
+      commentRow({
+        createdAt: new Date("2026-01-01T00:00:01.000Z"),
+        id: "c-002",
+      }),
+    ];
+    const extra = commentRow({
+      createdAt: new Date("2026-01-01T00:00:02.000Z"),
+      id: "c-003",
+    });
+
+    const findManyComment = jest.fn().mockResolvedValue([...page1, extra]);
+
+    const service = new IssueService(
+      {} as DatabaseService,
+      {
+        findManyComment,
+      } as unknown as IssueRepository
+    );
+
+    const result = await service.listComments({
+      issueId: "issue-1",
+      limit: pageSize,
+    });
+
+    expect(result.items).toHaveLength(pageSize);
+    expect(result.next).toEqual({
+      createdAt: page1[1]?.createdAt,
+      id: "c-002",
+    });
+    expect(findManyComment).toHaveBeenCalledWith(
+      {
+        include: issueCommentAuthorInclude,
+        orderBy: [...issueCommentListOrderBy],
+        take: pageSize + 1,
+        where: { issueId: "issue-1" },
+      },
+      undefined
+    );
+  });
+
+  it("applies the after cursor with gt on createdAt/id", async () => {
+    const findManyComment = jest.fn().mockResolvedValue([]);
+    const service = new IssueService(
+      {} as DatabaseService,
+      {
+        findManyComment,
+      } as unknown as IssueRepository
+    );
+
+    const after = {
+      createdAt: new Date("2026-01-01T00:00:01.000Z"),
+      id: "c-002",
+    };
+
+    await service.listComments({
+      after,
+      issueId: "issue-1",
+      limit: 20,
+    });
+
+    expect(findManyComment.mock.calls[0][0].where).toEqual({
+      issueId: "issue-1",
+      OR: [
+        { createdAt: { gt: after.createdAt } },
+        {
+          AND: [{ createdAt: after.createdAt }, { id: { gt: after.id } }],
+        },
+      ],
+    });
+  });
+});
+
+function commentRow(
+  overrides: Partial<IssueCommentWithAuthor> &
+    Pick<IssueCommentWithAuthor, "id">
+): IssueCommentWithAuthor {
+  return {
+    author: {
+      firstName: "Ada",
+      id: "user-1",
+      lastName: "Lovelace",
+    },
+    authorId: "user-1",
+    body: "Comment",
+    createdAt: new Date("2026-01-01T00:00:00.000Z"),
+    issueId: "issue-1",
+    organizationId: "org-1",
+    updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+    ...overrides,
+  };
+}

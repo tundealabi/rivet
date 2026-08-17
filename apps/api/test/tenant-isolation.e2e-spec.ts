@@ -3,6 +3,7 @@ import type { INestApplication } from "@nestjs/common";
 import type {
   ApiPaginatedSuccessResponseWire,
   ApiSuccessResponseWire,
+  IssueCommentResponseWire,
   IssueResponseWire,
   ProjectDetailResponseWire,
   ProjectResponseWire,
@@ -26,6 +27,7 @@ import {
   type RegisteredUser,
   registerLoginAndGetOrg,
 } from "./helpers/fixtures/auth";
+import { createIssueComment } from "./helpers/fixtures/comment";
 import { createIssue } from "./helpers/fixtures/issue";
 import { createProject } from "./helpers/fixtures/project";
 
@@ -169,6 +171,54 @@ describe("Tenant isolation (e2e)", () => {
     expect(verifyBody.data.title).toBe(orgAIssueTitle);
   });
 
+  it("allows org A to comment on its issue and returns 404 for org B", async () => {
+    const created = await createIssueComment(
+      app,
+      orgA.accessToken,
+      orgA.orgId,
+      orgAIssueId,
+      "Org A only comment"
+    );
+
+    const ownerRes = await request(app.getHttpServer())
+      .get(`${API_PREFIX}/issues/${orgAIssueId}/comments`)
+      .set("Authorization", `Bearer ${orgA.accessToken}`)
+      .set(AUTH_CONSTANTS.ORG_ID_HEADER, orgA.orgId)
+      .expect(200);
+
+    const ownerBody =
+      ownerRes.body as ApiPaginatedSuccessResponseWire<IssueCommentResponseWire>;
+    expect(ownerBody.data.some((comment) => comment.id === created.id)).toBe(
+      true
+    );
+
+    await request(app.getHttpServer())
+      .get(`${API_PREFIX}/issues/${orgAIssueId}/comments`)
+      .set("Authorization", `Bearer ${orgB.accessToken}`)
+      .set(AUTH_CONSTANTS.ORG_ID_HEADER, orgB.orgId)
+      .expect(404);
+
+    await request(app.getHttpServer())
+      .patch(`${API_PREFIX}/issues/${orgAIssueId}/comments/${created.id}`)
+      .set("Authorization", `Bearer ${orgB.accessToken}`)
+      .set(AUTH_CONSTANTS.ORG_ID_HEADER, orgB.orgId)
+      .send({ body: "Hijacked" })
+      .expect(404);
+
+    const verifyRes = await request(app.getHttpServer())
+      .get(`${API_PREFIX}/issues/${orgAIssueId}/comments`)
+      .set("Authorization", `Bearer ${orgA.accessToken}`)
+      .set(AUTH_CONSTANTS.ORG_ID_HEADER, orgA.orgId)
+      .expect(200);
+
+    const verifyBody =
+      verifyRes.body as ApiPaginatedSuccessResponseWire<IssueCommentResponseWire>;
+    const stillThere = verifyBody.data.find(
+      (comment) => comment.id === created.id
+    );
+    expect(stillThere?.body).toBe("Org A only comment");
+  });
+
   it("allows org A to list issues for its project and returns 404 for org B", async () => {
     const ownerRes = await request(app.getHttpServer())
       .get(`${API_PREFIX}/issues`)
@@ -258,6 +308,56 @@ describe("Tenant isolation (e2e)", () => {
         issueService.update({
           id: orgAIssueId,
           title: "Cross-tenant update attempt",
+        })
+      ).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        kind: "NOT_FOUND",
+        name: DomainError.name,
+      });
+    });
+  });
+
+  it("does not return org A comments when orgId is omitted from module queries", async () => {
+    const created = await createIssueComment(
+      app,
+      orgA.accessToken,
+      orgA.orgId,
+      orgAIssueId,
+      "Module isolation comment"
+    );
+
+    const cls = app.get(ClsService<TenantContextStore>);
+    const issueService = app.get(IssueService);
+
+    await cls.run(async () => {
+      cls.set(TENANT_CONTEXT_KEYS.orgId, orgA.orgId);
+      cls.set(TENANT_CONTEXT_KEYS.userId, "test-user-a");
+      cls.set(TENANT_CONTEXT_KEYS.orgRole, OrganizationRole.OWNER);
+
+      const found = await issueService.findCommentById({
+        id: created.id,
+        issueId: orgAIssueId,
+      });
+      expect(found).not.toBeNull();
+      expect(found?.id).toBe(created.id);
+    });
+
+    await cls.run(async () => {
+      cls.set(TENANT_CONTEXT_KEYS.orgId, orgB.orgId);
+      cls.set(TENANT_CONTEXT_KEYS.userId, "test-user-b");
+      cls.set(TENANT_CONTEXT_KEYS.orgRole, OrganizationRole.OWNER);
+
+      const found = await issueService.findCommentById({
+        id: created.id,
+        issueId: orgAIssueId,
+      });
+      expect(found).toBeNull();
+
+      await expect(
+        issueService.updateComment({
+          body: "Cross-tenant update attempt",
+          id: created.id,
+          issueId: orgAIssueId,
         })
       ).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND,

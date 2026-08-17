@@ -38,4 +38,25 @@ export interface GetIssueSummaryInput {
   projectId: string;
 }
 
+export interface CreateIssueCommentInput {
+  body: string;
+  issueId: string;
+}
+
+export interface ListIssueCommentsInput {
+  issueId: string;
+  pagination: CursorPaginationInput;
+}
+
+export interface UpdateIssueCommentInput {
+  body: string;
+  commentId: string;
+  issueId: string;
+}
+
+export interface DeleteIssueCommentInput {
+  commentId: string;
+  issueId: string;
+}
+
 export type { IssueSummaryResponseWire };

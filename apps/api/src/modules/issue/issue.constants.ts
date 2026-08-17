@@ -10,10 +10,25 @@ export const issueAssigneeInclude = {
   },
 } satisfies Prisma.IssueInclude;
 
+export const issueCommentAuthorInclude = {
+  author: {
+    select: {
+      firstName: true,
+      id: true,
+      lastName: true,
+    },
+  },
+} satisfies Prisma.IssueCommentInclude;
+
 export const issueListOrderBy = [
   { createdAt: "desc" },
   { id: "desc" },
 ] as const satisfies Prisma.IssueOrderByWithRelationInput[];
+
+export const issueCommentListOrderBy = [
+  { createdAt: "asc" },
+  { id: "asc" },
+] as const satisfies Prisma.IssueCommentOrderByWithRelationInput[];
 
 /** CSV columns plus cursor keys. Narrower than the issue DTO include. */
 export const issueExportSelect = {
