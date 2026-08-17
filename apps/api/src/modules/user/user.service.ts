@@ -24,7 +24,7 @@ export class UserService {
       return await this.userRepository.create(
         {
           data: {
-            email: input.email,
+            email: input.email.trim().toLowerCase(),
             firstName: input.firstName,
             lastName: input.lastName,
             passwordHash: input.hashedPassword,
@@ -48,7 +48,10 @@ export class UserService {
   }
 
   async findByEmail(email: string, options?: DbOptions) {
-    return await this.userRepository.findUnique({ where: { email } }, options);
+    return await this.userRepository.findUnique(
+      { where: { email: email.trim().toLowerCase() } },
+      options
+    );
   }
 
   async findById(id: string, options?: DbOptions) {

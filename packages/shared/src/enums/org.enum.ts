@@ -25,3 +25,17 @@ export enum PlanTier {
   PRO = "PRO",
   TEAM = "TEAM",
 }
+
+/** Wire status for org-roster invite list. Expiry is computed, not stored. */
+export enum OrganizationInviteStatus {
+  PENDING = "PENDING",
+  EXPIRED = "EXPIRED",
+}
+
+export const ASSIGNABLE_INVITE_ROLES = [
+  OrganizationRole.ADMIN,
+  OrganizationRole.MEMBER,
+  OrganizationRole.VIEWER,
+] as const;
+
+export type AssignableInviteRole = (typeof ASSIGNABLE_INVITE_ROLES)[number];

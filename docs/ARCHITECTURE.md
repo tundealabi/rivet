@@ -117,7 +117,7 @@ Shipped mutating floors:
 | Min role | Routes                                                             |
 | -------- | ------------------------------------------------------------------ |
 | MEMBER+  | Create project, create/update issue, create export, create comment |
-| ADMIN+   | Update / archive / unarchive project                               |
+| ADMIN+   | Update / archive / unarchive project; org-side invites             |
 
 Owner is not distinct from admin on current routes (reserved for billing / delete-org). Members may edit any issue. Comment edit/delete are `MEMBER+` at the route, then **author or ADMIN+** in the service.
 
@@ -135,6 +135,25 @@ databaseService.client.$transaction(async (tx) => { /* DB work via { tx } */ })
 ```
 
 Tenant-scoped module calls rely on CLS (set by guard or async entry wrapper) plus the Prisma extension — no separate `TenantPrismaService` until/unless RLS is adopted.
+
+---
+
+## Invites
+
+Org invites are copy-link only — **no mailer**. The raw token is returned on create and resend; list endpoints never include it. The API stores `HashService.digest(token)` (same as refresh tokens) and looks up by hash.
+
+`OrganizationInvite` is **not** on `TENANT_SCOPED_MODELS` (same as `OrganizationMember`). Org-side queries pass `organizationId` from CLS explicitly.
+
+Two controllers in `api/organization/` so guards do not fight:
+
+- `OrganizationController` — list orgs, create org after signup, org-scoped invites (`x-org-id` + `ADMIN+`)
+- `InvitationsController` — invitee routes (`GET /invitations`, accept, decline, optional preview). **JWT only**; no `x-org-id`, no org-role guard
+
+Accept is one service method and two HTTP entries (`POST /invitations/:id/accept` and `POST /invitations/accept` `{ token }`). Both require auth and email match. Membership + consume run in one transaction; seat check (`PLAN_LIMITS.members`, active members + active invites) is inside that transaction. Preview by token may be unauthenticated; invalid/expired tokens return the same generic not-found.
+
+Create org after signup is `POST /organizations` `{ name }` — JWT, no org guard — `OrgService.create` + `OWNER` membership in one transaction. Register still creates the first org.
+
+**Verification:** `apps/api/test/org-invites.e2e-spec.ts`, `invitations.e2e-spec.ts`, `create-organization.e2e-spec.ts`
 
 ---
 

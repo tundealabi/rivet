@@ -15,6 +15,8 @@ import { Prisma } from "@/generated/prisma/client";
 import { OrgMemberRepository } from "./org-member.repository";
 import {
   CreateOrgMemberInput,
+  FindByOrgAndEmailInput,
+  FindByOrgAndEmailsInput,
   FindByOrgAndUserInput,
   ListMembersInOrgInput,
   ListMembersInOrgResult,
@@ -46,6 +48,14 @@ type OrganizationMemberWithUser = Prisma.OrganizationMemberGetPayload<{
         id: true;
         lastName: true;
       };
+    };
+  };
+}>;
+
+type OrganizationMemberWithEmail = Prisma.OrganizationMemberGetPayload<{
+  include: {
+    user: {
+      select: { email: true };
     };
   };
 }>;
@@ -100,6 +110,70 @@ export class OrgMemberService {
           },
         },
       },
+      options
+    );
+  }
+
+  async findByOrgAndEmail(
+    input: FindByOrgAndEmailInput,
+    options?: DbOptions
+  ): Promise<OrganizationMember | null> {
+    return this.orgMemberRepository.findFirst(
+      {
+        where: {
+          organizationId: input.orgId,
+          user: {
+            email: {
+              equals: input.email.trim().toLowerCase(),
+              mode: "insensitive",
+            },
+          },
+        },
+      },
+      options
+    );
+  }
+
+  async findByOrgAndEmails(
+    input: FindByOrgAndEmailsInput,
+    options?: DbOptions
+  ): Promise<{ email: string }[]> {
+    const emails = [
+      ...new Set(input.emails.map((email) => email.trim().toLowerCase())),
+    ];
+
+    if (emails.length === 0) {
+      return [];
+    }
+
+    const members = (await this.orgMemberRepository.findMany(
+      {
+        include: {
+          user: {
+            select: { email: true },
+          },
+        },
+        where: {
+          organizationId: input.orgId,
+          user: {
+            email: {
+              in: emails,
+              mode: "insensitive",
+            },
+          },
+        },
+      },
+      options
+    )) as OrganizationMemberWithEmail[];
+
+    return members.map((member) => ({
+      email: member.user.email,
+    }));
+  }
+
+  async countInOrg(orgId: string, options?: DbOptions): Promise<number> {
+    return this.orgMemberRepository.count(
+      { where: { organizationId: orgId } },
       options
     );
   }

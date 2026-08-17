@@ -16,36 +16,19 @@ import { Request, Response } from "express";
 import { ZodValidationException } from "nestjs-zod";
 
 import { DomainError, ValidationError } from "@/common/errors";
-
-const SENSITIVE_REQUEST_FIELDS = ["idToken", "password"] as const;
-
-function redactSensitiveFields(
-  body: Record<string, unknown>
-): Record<string, unknown> {
-  if (!body || typeof body !== "object") {
-    return body;
-  }
-
-  const redacted = { ...body };
-
-  for (const field of SENSITIVE_REQUEST_FIELDS) {
-    if (redacted[field]) {
-      redacted[field] = "[REDACTED]";
-    }
-  }
-
-  return redacted;
-}
+import { Helpers } from "@/common/helpers";
 
 function buildRequestLog(request: Request) {
   return {
-    body: redactSensitiveFields(request.body as Record<string, unknown>),
+    body: Helpers.redactSensitiveFields(
+      request.body as Record<string, unknown> | undefined
+    ),
     method: request.method,
     params: request.params,
-    query: request.query,
+    query: Helpers.redactSensitiveFields(request.query),
     requestId: request.requestId,
     timestamp: new Date().toISOString(),
-    url: request.originalUrl,
+    url: Helpers.redactSensitiveUrl(request.originalUrl),
   };
 }
 

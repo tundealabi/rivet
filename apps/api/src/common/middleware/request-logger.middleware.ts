@@ -2,6 +2,8 @@ import { Injectable, Logger, NestMiddleware } from "@nestjs/common";
 import { NextFunction, Request, Response } from "express";
 import { getClientIp } from "request-ip";
 
+import { Helpers } from "@/common/helpers";
+
 @Injectable()
 export class HttpRequestLoggerMiddleware implements NestMiddleware {
   private readonly logger = new Logger(HttpRequestLoggerMiddleware.name);
@@ -15,7 +17,7 @@ export class HttpRequestLoggerMiddleware implements NestMiddleware {
       const contentLength = response.get("content-length");
       const clientIp = getClientIp(request);
       this.logger.log(
-        `${method} ${originalUrl} ${statusCode} ${durationMs}ms ${contentLength} - ${userAgent} ${clientIp} ${requestId}`,
+        `${method} ${Helpers.redactSensitiveUrl(originalUrl)} ${statusCode} ${durationMs}ms ${contentLength} - ${userAgent} ${clientIp} ${requestId}`,
         "HTTPRequest"
       );
     });

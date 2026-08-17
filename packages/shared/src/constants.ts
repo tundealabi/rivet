@@ -14,6 +14,9 @@ export const IDEMPOTENCY_KEY_MAX_LENGTH = 256;
 
 export const COMMENT_BODY_MAX_LENGTH = 10_000;
 
+export const INVITE_TTL_DAYS = 7;
+export const INVITE_MAX_EMAILS_PER_REQUEST = 50;
+
 export interface PlanLimits {
   exportsPerMonth: number | null;
   members: number | null;

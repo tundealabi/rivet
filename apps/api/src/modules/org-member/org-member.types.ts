@@ -12,6 +12,16 @@ export interface FindByOrgAndUserInput {
   userId: string;
 }
 
+export interface FindByOrgAndEmailInput {
+  email: string;
+  orgId: string;
+}
+
+export interface FindByOrgAndEmailsInput {
+  emails: string[];
+  orgId: string;
+}
+
 export interface ListOrganizationsForUserInput {
   userId: string;
 }

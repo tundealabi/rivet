@@ -64,6 +64,7 @@ model User {
 
   emailVerifications EmailVerification[]
   memberships        OrganizationMember[]
+  sentInvites        OrganizationInvite[] @relation("OrganizationInviteInviter")
   sessions           Session[]
   createdProjects    Project[]            @relation("ProjectCreator")
   assignedIssues     Issue[]              @relation("IssueAssignee")
@@ -102,6 +103,7 @@ model Organization {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   members         OrganizationMember[]
+  invites         OrganizationInvite[]
   projects        Project[]
   issues          Issue[]
   issueActivities IssueActivity[]
@@ -123,6 +125,31 @@ model OrganizationMember {
 
   @@unique([organizationId, userId])
   @@map("organization_members")
+}
+
+model OrganizationInvite {
+  id         String           @id @default(uuid()) @db.Uuid
+  email      String
+  role       OrganizationRole
+  tokenHash  String           @unique @map("token_hash")
+  expiresAt  DateTime         @map("expires_at")
+  acceptedAt DateTime?        @map("accepted_at")
+  declinedAt DateTime?        @map("declined_at")
+  revokedAt  DateTime?        @map("revoked_at")
+  lastSentAt DateTime         @map("last_sent_at")
+
+  invitedById String? @map("invited_by_id") @db.Uuid
+  invitedBy   User?   @relation("OrganizationInviteInviter", fields: [invitedById], references: [id], onDelete: SetNull)
+
+  organizationId String       @map("org_id") @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([organizationId, email])
+  @@index([email])
+  @@map("organization_invites")
 }
 
 model Project {
