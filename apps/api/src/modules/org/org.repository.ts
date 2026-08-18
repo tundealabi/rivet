@@ -6,6 +6,7 @@ import {
   OrganizationCreateArgs,
   OrganizationFindManyArgs,
   OrganizationFindUniqueArgs,
+  OrganizationUpdateArgs,
 } from "@/generated/prisma/models";
 
 @Injectable()
@@ -34,5 +35,13 @@ export class OrgRepository {
   ) {
     const client = this.databaseService.resolveClient(dbOptions);
     return client.organization.findUnique(args);
+  }
+
+  async update<T extends OrganizationUpdateArgs>(
+    args: T,
+    dbOptions?: DbOptions
+  ) {
+    const client = this.databaseService.resolveClient(dbOptions);
+    return client.organization.update(args);
   }
 }

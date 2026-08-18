@@ -5,6 +5,7 @@ import DBConfig from "./db.config";
 import RedisConfig from "./redis.config";
 import S3Config from "./s3.config";
 import SecurityConfig from "./security.config";
+import StripeConfig from "./stripe.config";
 
 export default [
   AppConfig,
@@ -14,4 +15,5 @@ export default [
   RedisConfig,
   S3Config,
   SecurityConfig,
+  StripeConfig,
 ];

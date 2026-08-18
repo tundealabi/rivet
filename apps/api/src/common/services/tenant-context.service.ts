@@ -10,7 +10,7 @@ import type { OrganizationRole } from "@/generated/prisma/client";
 type TenantContextInput = {
   orgId: string;
   orgRole?: OrganizationRole;
-  userId: string;
+  userId?: string;
 };
 
 @Injectable()
@@ -27,7 +27,9 @@ export class TenantContextService {
   ): Promise<T> {
     return this.cls.run(async () => {
       this.cls.set(TENANT_CONTEXT_KEYS.orgId, context.orgId);
-      this.cls.set(TENANT_CONTEXT_KEYS.userId, context.userId);
+      if (context.userId !== undefined) {
+        this.cls.set(TENANT_CONTEXT_KEYS.userId, context.userId);
+      }
       if (context.orgRole !== undefined) {
         this.cls.set(TENANT_CONTEXT_KEYS.orgRole, context.orgRole);
       }

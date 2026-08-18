@@ -96,11 +96,13 @@ model EmailVerification {
 }
 
 model Organization {
-  id        String   @id @default(uuid()) @db.Uuid
-  name      String
-  planTier  PlanTier @default(FREE) @map("plan_tier")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id                   String   @id @default(uuid()) @db.Uuid
+  name                 String
+  planTier             PlanTier @default(FREE) @map("plan_tier")
+  stripeCustomerId     String?  @unique @map("stripe_customer_id")
+  stripeSubscriptionId String?  @unique @map("stripe_subscription_id")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
 
   members         OrganizationMember[]
   invites         OrganizationInvite[]
@@ -327,6 +329,14 @@ model Session {
   refreshTokens RefreshToken[]
 
   @@map("sessions")
+}
+
+model StripeEvent {
+  id        String   @id
+  type      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("stripe_events")
 }
 
 // model ProjectMember {

@@ -1,4 +1,5 @@
 export * from "./auth/index.js";
+export * from "./billing/index.js";
 export * from "./envelope.guards.js";
 export * from "./envelope.wire.js";
 export * from "./export/index.js";

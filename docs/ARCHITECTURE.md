@@ -118,8 +118,9 @@ Shipped mutating floors:
 | -------- | ------------------------------------------------------------------ |
 | MEMBER+  | Create project, create/update issue, create export, create comment |
 | ADMIN+   | Update / archive / unarchive project; org-side invites             |
+| OWNER    | `GET /billing`, `POST /billing/checkout`                           |
 
-Owner is not distinct from admin on current routes (reserved for billing / delete-org). Members may edit any issue. Comment edit/delete are `MEMBER+` at the route, then **author or ADMIN+** in the service.
+Owner is distinct from admin on billing only (delete-org still deferred). Members may edit any issue. Comment edit/delete are `MEMBER+` at the route, then **author or ADMIN+** in the service.
 
 **Verification:** `apps/api/test/rbac.e2e-spec.ts`
 
@@ -250,11 +251,35 @@ Export is multi-domain. `modules/issue` is a row source only.
 | Row source           | `modules/issue` cursor iterator |
 | Upload + signed URL  | storage adapter used by worker  |
 
-Quota is **org-wide**, charged **on insert** (`PLAN_LIMITS.exportsPerMonth`, UTC calendar month until Stripe billing exists). `Idempotency-Key` is required. Download is requester-only. BullMQ workers set CLS before module/DB work — same path as other async entry points.
+Quota is **org-wide**, charged **on insert** (`PLAN_LIMITS.exportsPerMonth`, UTC calendar month). `Idempotency-Key` is required. Download is requester-only. BullMQ workers set CLS before module/DB work — same path as other async entry points.
 
 Do not hold a DB transaction across enqueue or file I/O.
 
 **Verification:** `apps/api/test/export.e2e-spec.ts` — cross-org and non-requester GET 404; missing key 400; idempotent POST; quota 429; viewer cannot create; worker CSV quoting and formula prefix.
+
+---
+
+## Billing
+
+Subscribe-once Stripe Checkout for **PRO monthly**. The signed webhook is the only writer of `planTier` — the Checkout success URL is not trusted. TEAM is a fixture/unlimited tier, not a Checkout SKU. Portal, cancel, upgrade, and billing-period quota are deferred ([`apps/api/BILLING.md`](../apps/api/BILLING.md)).
+
+`GET /billing` and `POST /billing/checkout` are **OWNER-only** (`@RequireOrgRole(OWNER)`). Checkout is refused unless `planTier === FREE` (`409` / `BILLING_ALREADY_SUBSCRIBED`). `GET /billing` returns `{ planTier }` only — no Stripe ids on the wire.
+
+Stripe SDK lives in `src/stripe/` (infrastructure, like `storage/`). `api/billing` creates/reuses the Stripe customer and Checkout session **outside** any DB transaction. `api/webhooks` verifies `Stripe-Signature` on the raw body (no JWT, no `x-org-id`).
+
+Webhook path:
+
+```
+verify signature on raw body
+resolve org by stripeCustomerId   // Organization / StripeEvent off TENANT_SCOPED_MODELS
+runWithTenantContext({ orgId }, () =>
+  $transaction: insert StripeEvent (id = event.id) + update planTier / subscription id
+)
+```
+
+Unknown customer, unhandled `type`, or non-PRO price → **200** (do not retry). Bad signature → **400**. Duplicate `event.id` → **200**, no second plan update. `customer.subscription.deleted` sets `FREE` and clears `stripeSubscriptionId` (keeps `stripeCustomerId`). Export quota stays **UTC calendar month**.
+
+**Verification:** `apps/api/test/billing.e2e-spec.ts`, `webhooks.e2e-spec.ts`
 
 ---
 

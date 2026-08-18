@@ -2,6 +2,7 @@
 export enum ErrorCode {
   AUTH_EMAIL_ALREADY_EXISTS = "AUTH_EMAIL_ALREADY_EXISTS",
   ASSIGNEE_NOT_ORG_MEMBER = "ASSIGNEE_NOT_ORG_MEMBER",
+  BILLING_ALREADY_SUBSCRIBED = "BILLING_ALREADY_SUBSCRIBED",
   COMMENT_RATE_LIMIT_EXCEEDED = "COMMENT_RATE_LIMIT_EXCEEDED",
   CONFLICT = "CONFLICT",
   EMAIL_NOT_VERIFIED = "EMAIL_NOT_VERIFIED",
@@ -31,6 +32,7 @@ export enum ErrorCode {
 export enum ErrorMessage {
   AUTH_EMAIL_ALREADY_EXISTS = "An account with this email already exists",
   ASSIGNEE_NOT_ORG_MEMBER = "Assignee must be a member of the organization",
+  BILLING_ALREADY_SUBSCRIBED = "This organization is already subscribed",
   COMMENT_RATE_LIMIT_EXCEEDED = "Too many comments. Please try again later",
   CONFLICT = "Conflict",
   EMAIL_NOT_VERIFIED = "Please verify your email before logging in",

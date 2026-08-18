@@ -43,6 +43,18 @@ describe("TenantContextService.runWithTenantContext", () => {
     );
   });
 
+  it("does not set userId when omitted", async () => {
+    const { service, set } = createService();
+
+    await service.runWithTenantContext({ orgId: "org-1" }, () => undefined);
+
+    expect(set).toHaveBeenCalledWith(TENANT_CONTEXT_KEYS.orgId, "org-1");
+    expect(set).not.toHaveBeenCalledWith(
+      TENANT_CONTEXT_KEYS.userId,
+      expect.anything()
+    );
+  });
+
   it("sets orgRole when provided", async () => {
     const { service, set } = createService();
 
