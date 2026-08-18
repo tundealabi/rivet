@@ -1,8 +1,14 @@
 import { Global, Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
-import { ThrottlerModule } from "@nestjs/throttler";
+import { APP_GUARD } from "@nestjs/core";
+import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { ClsModule } from "nestjs-cls";
 
+import {
+  THROTTLER_LONG,
+  THROTTLER_MEDIUM,
+  THROTTLER_SHORT,
+} from "@/common/constants";
 import { OrgMemberGuard, OrgRoleGuard } from "@/common/guards";
 import {
   HashService,
@@ -20,23 +26,25 @@ import { OrgMemberModule } from "@/modules/org-member/org-member.module";
       isGlobal: true,
       load: configs,
     }),
-    ThrottlerModule.forRoot([
-      {
-        name: "short",
-        ttl: 1000,
-        limit: 3,
-      },
-      {
-        name: "medium",
-        ttl: 10000,
-        limit: 20,
-      },
-      {
-        name: "long",
-        ttl: 60000,
-        limit: 100,
-      },
-    ]),
+    ThrottlerModule.forRoot({
+      throttlers: [
+        {
+          name: THROTTLER_SHORT,
+          ttl: 1000,
+          limit: 3,
+        },
+        {
+          name: THROTTLER_MEDIUM,
+          ttl: 10000,
+          limit: 20,
+        },
+        {
+          name: THROTTLER_LONG,
+          ttl: 60000,
+          limit: 100,
+        },
+      ],
+    }),
     ClsModule.forRoot({
       global: true,
       middleware: {
@@ -51,6 +59,10 @@ import { OrgMemberModule } from "@/modules/org-member/org-member.module";
     TenantContextService,
     OrgMemberGuard,
     OrgRoleGuard,
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
   ],
   exports: [
     HashService,

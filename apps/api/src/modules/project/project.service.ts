@@ -23,6 +23,13 @@ export class ProjectService {
     private readonly projectRepository: ProjectRepository
   ) {}
 
+  async countInOrg(orgId: string, options?: DbOptions): Promise<number> {
+    return this.projectRepository.count(
+      { where: { organizationId: orgId } },
+      options
+    );
+  }
+
   async create(
     input: CreateProjectInput,
     options?: DbOptions

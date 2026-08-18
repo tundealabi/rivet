@@ -3,11 +3,15 @@ import type {
   ProjectDetailResponseWire,
   ProjectResponseWire,
 } from "@rivet/shared/api";
-import { ErrorCode, ErrorMessage } from "@rivet/shared/enums";
+import { PLAN_LIMITS } from "@rivet/shared/constants";
+import { ErrorCode, ErrorMessage, PlanTier } from "@rivet/shared/enums";
 
 import { DomainError } from "@/common/errors";
 import { TenantContextService } from "@/common/services";
+import { DatabaseService } from "@/database/database.service";
+import type { DbOptions } from "@/database/database.types";
 import { Project } from "@/generated/prisma/client";
+import { OrgService } from "@/modules/org/org.service";
 import { ProjectService as ProjectModuleService } from "@/modules/project/project.service";
 import type { ProjectWithCreator } from "@/modules/project/project.types";
 
@@ -20,15 +24,29 @@ import {
 @Injectable()
 export class ProjectService {
   constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly orgService: OrgService,
     private readonly projectService: ProjectModuleService,
     private readonly tenantContext: TenantContextService
   ) {}
 
   async createProject(input: CreateProjectInput): Promise<ProjectResponseWire> {
-    const project = await this.projectService.create({
-      ...input,
-      organizationId: this.tenantContext.orgId,
-    });
+    const project = await this.databaseService.client.$transaction(
+      async (tx) => {
+        const options = { tx };
+
+        await this.assertWithinProjectLimit(options);
+
+        return this.projectService.create(
+          {
+            ...input,
+            organizationId: this.tenantContext.orgId,
+          },
+          options
+        );
+      }
+    );
+
     return this.toResponse(project);
   }
 
@@ -98,6 +116,40 @@ export class ProjectService {
     }
 
     return this.toResponse(unarchived);
+  }
+
+  private async assertWithinProjectLimit(options?: DbOptions): Promise<void> {
+    const organization = await this.orgService.findById(
+      this.tenantContext.orgId,
+      options
+    );
+
+    if (!organization) {
+      throw new DomainError(
+        "NOT_FOUND",
+        ErrorCode.NOT_FOUND,
+        ErrorMessage.NOT_FOUND
+      );
+    }
+
+    const limit = PLAN_LIMITS[organization.planTier as PlanTier].projects;
+
+    if (limit === null) {
+      return;
+    }
+
+    const projectCount = await this.projectService.countInOrg(
+      this.tenantContext.orgId,
+      options
+    );
+
+    if (projectCount >= limit) {
+      throw new DomainError(
+        "TOO_MANY_REQUESTS",
+        ErrorCode.ORG_PROJECT_LIMIT_EXCEEDED,
+        ErrorMessage.ORG_PROJECT_LIMIT_EXCEEDED
+      );
+    }
   }
 
   private toResponse(project: Project): ProjectResponseWire {

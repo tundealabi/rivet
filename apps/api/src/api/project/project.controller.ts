@@ -47,6 +47,10 @@ export class ProjectController {
         description: "Not a member of the organization, or role is viewer",
         status: HttpStatus.FORBIDDEN,
       },
+      {
+        description: "Organization project limit reached for this plan",
+        status: HttpStatus.TOO_MANY_REQUESTS,
+      },
     ],
     httpStatus: HttpStatus.CREATED,
     summary: "Create a project",

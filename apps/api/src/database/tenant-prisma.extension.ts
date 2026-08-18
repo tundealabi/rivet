@@ -88,7 +88,7 @@ function applyTenantScope(
 ): QueryArgs {
   const scopedArgs: QueryArgs = { ...args };
 
-  if (WHERE_OPERATIONS.has(operation) && "where" in scopedArgs) {
+  if (WHERE_OPERATIONS.has(operation)) {
     scopedArgs.where = mergeOrgIntoWhere(scopedArgs.where, orgId);
   }
 

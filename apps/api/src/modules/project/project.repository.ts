@@ -21,6 +21,16 @@ export class ProjectRepository {
     return client.project.create(args);
   }
 
+  async count(
+    args: Parameters<
+      ReturnType<DatabaseService["resolveClient"]>["project"]["count"]
+    >[0],
+    dbOptions?: DbOptions
+  ) {
+    const client = this.databaseService.resolveClient(dbOptions);
+    return client.project.count(args);
+  }
+
   async findFirst<T extends ProjectFindFirstArgs>(
     args: T,
     dbOptions?: DbOptions

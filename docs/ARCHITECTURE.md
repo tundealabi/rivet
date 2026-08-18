@@ -253,6 +253,8 @@ Export is multi-domain. `modules/issue` is a row source only.
 
 Quota is **org-wide**, charged **on insert** (`PLAN_LIMITS.exportsPerMonth`, UTC calendar month). `Idempotency-Key` is required. Download is requester-only. BullMQ workers set CLS before module/DB work — same path as other async entry points.
 
+GET omits `downloadUrl` after `expiresAt` (24h). Deleting expired objects from the bucket is deferred.
+
 Do not hold a DB transaction across enqueue or file I/O.
 
 **Verification:** `apps/api/test/export.e2e-spec.ts` — cross-org and non-requester GET 404; missing key 400; idempotent POST; quota 429; viewer cannot create; worker CSV quoting and formula prefix.
@@ -280,6 +282,12 @@ runWithTenantContext({ orgId }, () =>
 Unknown customer, unhandled `type`, or non-PRO price → **200** (do not retry). Bad signature → **400**. Duplicate `event.id` → **200**, no second plan update. `customer.subscription.deleted` sets `FREE` and clears `stripeSubscriptionId` (keeps `stripeCustomerId`). Export quota stays **UTC calendar month**.
 
 **Verification:** `apps/api/test/billing.e2e-spec.ts`, `webhooks.e2e-spec.ts`
+
+---
+
+## Plan limits
+
+`PLAN_LIMITS` gates CSV exports/month, members (active members + active invites), and projects (including archived). Exceed → `429` with a dedicated code. Global HTTP `ThrottlerGuard` (3/s, 20/10s, 100/min) is not plan-tiered; Stripe webhooks skip it.
 
 ---
 

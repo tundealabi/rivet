@@ -1,5 +1,6 @@
 import { INestApplication } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
+import { ThrottlerGuard } from "@nestjs/throttler";
 import { App } from "supertest/types";
 
 import { AppModule } from "@/app/app.module";
@@ -8,6 +9,7 @@ import { STRIPE_CLIENT } from "@/stripe";
 
 export async function createE2eApp(options?: {
   stripeClient?: unknown;
+  throttle?: boolean;
 }): Promise<INestApplication<App>> {
   const builder = Test.createTestingModule({
     imports: [AppModule],
@@ -15,6 +17,10 @@ export async function createE2eApp(options?: {
 
   if (options?.stripeClient !== undefined) {
     builder.overrideProvider(STRIPE_CLIENT).useValue(options.stripeClient);
+  }
+
+  if (!options?.throttle) {
+    builder.overrideGuard(ThrottlerGuard).useValue({ canActivate: () => true });
   }
 
   const moduleFixture: TestingModule = await builder.compile();
