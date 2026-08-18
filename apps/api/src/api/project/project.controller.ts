@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpStatus,
   Param,
@@ -158,6 +159,29 @@ export class ProjectController {
     @Param("id", ParseUUIDPipe) id: string
   ): Promise<ProjectResponseDto> {
     return this.service.unarchiveProject(id);
+  }
+
+  @Delete(":id")
+  @RequireOrgRole(OrganizationRole.ADMIN)
+  @ApiEnvelopeResponse(ProjectResponseDto, {
+    auth: "required",
+    description:
+      "Delete a project and its issues. Requires admin or owner. Cascades to issues, comments, activity, and export jobs.",
+    errorResponses: [
+      {
+        description: "Not a member of the organization, or role is below admin",
+        status: HttpStatus.FORBIDDEN,
+      },
+      {
+        description: "Project not found",
+        status: HttpStatus.NOT_FOUND,
+      },
+    ],
+    httpStatus: HttpStatus.OK,
+    summary: "Delete a project",
+  })
+  delete(@Param("id", ParseUUIDPipe) id: string): Promise<ProjectResponseDto> {
+    return this.service.deleteProject(id);
   }
 
   @Patch(":id")

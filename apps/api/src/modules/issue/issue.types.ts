@@ -3,6 +3,7 @@ import { Issue, IssuePriority, IssueStatus } from "@generated/prisma";
 import { Prisma } from "@/generated/prisma/client";
 
 import {
+  issueActivityActorInclude,
   issueAssigneeInclude,
   issueCommentAuthorInclude,
   issueExportSelect,
@@ -14,6 +15,10 @@ export type IssueWithAssignee = Prisma.IssueGetPayload<{
 
 export type IssueCommentWithAuthor = Prisma.IssueCommentGetPayload<{
   include: typeof issueCommentAuthorInclude;
+}>;
+
+export type IssueActivityWithActor = Prisma.IssueActivityGetPayload<{
+  include: typeof issueActivityActorInclude;
 }>;
 
 export type IssueExportRow = Prisma.IssueGetPayload<{
@@ -104,6 +109,17 @@ export interface ListIssueCommentsInput {
 
 export interface ListIssueCommentsResult {
   items: IssueCommentWithAuthor[];
+  next?: IssuesListCursor;
+}
+
+export interface ListIssueActivityInput {
+  after?: IssuesListCursor;
+  issueId: string;
+  limit: number;
+}
+
+export interface ListIssueActivityResult {
+  items: IssueActivityWithActor[];
   next?: IssuesListCursor;
 }
 

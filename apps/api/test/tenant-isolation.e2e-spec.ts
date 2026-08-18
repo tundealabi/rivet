@@ -3,6 +3,7 @@ import type { INestApplication } from "@nestjs/common";
 import type {
   ApiPaginatedSuccessResponseWire,
   ApiSuccessResponseWire,
+  IssueActivityResponseWire,
   IssueCommentResponseWire,
   IssueResponseWire,
   ProjectDetailResponseWire,
@@ -238,6 +239,68 @@ describe("Tenant isolation (e2e)", () => {
       .set(AUTH_CONSTANTS.ORG_ID_HEADER, orgB.orgId)
       .expect(404);
   });
+
+  it("allows org A to list issue activity and returns 404 for org B", async () => {
+    await request(app.getHttpServer())
+      .patch(`${API_PREFIX}/issues/${orgAIssueId}`)
+      .set("Authorization", `Bearer ${orgA.accessToken}`)
+      .set(AUTH_CONSTANTS.ORG_ID_HEADER, orgA.orgId)
+      .send({ title: `${orgAIssueTitle} updated` })
+      .expect(200);
+
+    const ownerRes = await request(app.getHttpServer())
+      .get(`${API_PREFIX}/issues/${orgAIssueId}/activity`)
+      .set("Authorization", `Bearer ${orgA.accessToken}`)
+      .set(AUTH_CONSTANTS.ORG_ID_HEADER, orgA.orgId)
+      .expect(200);
+
+    const ownerBody =
+      ownerRes.body as ApiPaginatedSuccessResponseWire<IssueActivityResponseWire>;
+    expect(ownerBody.data.length).toBeGreaterThan(0);
+
+    await request(app.getHttpServer())
+      .get(`${API_PREFIX}/issues/${orgAIssueId}/activity`)
+      .set("Authorization", `Bearer ${orgB.accessToken}`)
+      .set(AUTH_CONSTANTS.ORG_ID_HEADER, orgB.orgId)
+      .expect(404);
+  }, 15_000);
+
+  it("returns 404 when org B deletes org A's issue or project", async () => {
+    const issue = await createIssue(app, orgA.accessToken, orgA.orgId, {
+      projectId: orgAProjectId,
+      title: "Org A delete isolation issue",
+    });
+
+    await request(app.getHttpServer())
+      .delete(`${API_PREFIX}/issues/${issue.id}`)
+      .set("Authorization", `Bearer ${orgB.accessToken}`)
+      .set(AUTH_CONSTANTS.ORG_ID_HEADER, orgB.orgId)
+      .expect(404);
+
+    await request(app.getHttpServer())
+      .get(`${API_PREFIX}/issues/${issue.id}`)
+      .set("Authorization", `Bearer ${orgA.accessToken}`)
+      .set(AUTH_CONSTANTS.ORG_ID_HEADER, orgA.orgId)
+      .expect(200);
+
+    const project = await createProject(app, orgA.accessToken, orgA.orgId, {
+      description: "Org A delete isolation project",
+      key: `DEL${Date.now().toString(36).slice(-4).toUpperCase()}`.slice(0, 10),
+      name: `Isolation delete ${Date.now()}`,
+    });
+
+    await request(app.getHttpServer())
+      .delete(`${API_PREFIX}/projects/${project.id}`)
+      .set("Authorization", `Bearer ${orgB.accessToken}`)
+      .set(AUTH_CONSTANTS.ORG_ID_HEADER, orgB.orgId)
+      .expect(404);
+
+    await request(app.getHttpServer())
+      .get(`${API_PREFIX}/projects/${project.id}`)
+      .set("Authorization", `Bearer ${orgA.accessToken}`)
+      .set(AUTH_CONSTANTS.ORG_ID_HEADER, orgA.orgId)
+      .expect(200);
+  }, 15_000);
 
   it("does not return org A project when orgId is omitted from module queries", async () => {
     const cls = app.get(ClsService<TenantContextStore>);

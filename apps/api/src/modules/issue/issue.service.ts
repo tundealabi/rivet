@@ -14,6 +14,8 @@ import type { AppPrismaClientLike } from "@/database/tenant-prisma.extension";
 import { Prisma } from "@/generated/prisma/client";
 
 import {
+  issueActivityActorInclude,
+  issueActivityListOrderBy,
   issueAssigneeInclude,
   issueCommentAuthorInclude,
   issueCommentListOrderBy,
@@ -27,11 +29,14 @@ import {
   CreateIssueInput,
   FindIssueByIdInput,
   FindIssueCommentInput,
+  IssueActivityWithActor,
   IssueCommentWithAuthor,
   IssueExportRow,
   IssuesListCursor,
   IssueWithAssignee,
   IterateIssuesForExportInput,
+  ListIssueActivityInput,
+  ListIssueActivityResult,
   ListIssueCommentsInput,
   ListIssueCommentsResult,
   ListIssuesInput,
@@ -117,6 +122,30 @@ export class IssueService {
     }
 
     return issue;
+  }
+
+  async delete(
+    input: FindIssueByIdInput,
+    options?: DbOptions
+  ): Promise<IssueWithAssignee> {
+    const existing = await this.getById(input, options);
+
+    const deleted = await this.issueRepository.delete(
+      {
+        where: { id: input.id },
+      },
+      options
+    );
+
+    if (!deleted) {
+      throw new DomainError(
+        "NOT_FOUND",
+        ErrorCode.NOT_FOUND,
+        ErrorMessage.NOT_FOUND
+      );
+    }
+
+    return existing;
   }
 
   async *iterateForExport(
@@ -411,6 +440,38 @@ export class IssueService {
     };
   }
 
+  async listActivity(
+    input: ListIssueActivityInput,
+    options?: DbOptions
+  ): Promise<ListIssueActivityResult> {
+    const { limit } = input;
+
+    const activities = (await this.issueRepository.findManyActivity(
+      {
+        include: issueActivityActorInclude,
+        orderBy: [...issueActivityListOrderBy],
+        take: limit + 1,
+        where: this.activityListWhere(input),
+      },
+      options
+    )) as IssueActivityWithActor[];
+
+    const hasMore = activities.length > limit;
+    const items = hasMore ? activities.slice(0, limit) : activities;
+    const lastItem = items.at(-1);
+
+    return {
+      items,
+      next:
+        hasMore && lastItem
+          ? {
+              createdAt: lastItem.createdAt,
+              id: lastItem.id,
+            }
+          : undefined,
+    };
+  }
+
   async countCommentsByAuthorSince(
     input: CountIssueCommentsByAuthorSinceInput,
     options?: DbOptions
@@ -493,6 +554,26 @@ export class IssueService {
               { createdAt: { gt: after.createdAt } },
               {
                 AND: [{ createdAt: after.createdAt }, { id: { gt: after.id } }],
+              },
+            ],
+          }
+        : {}),
+    };
+  }
+
+  private activityListWhere(
+    input: Pick<ListIssueActivityInput, "after" | "issueId">
+  ): Prisma.IssueActivityWhereInput {
+    const { after, issueId } = input;
+
+    return {
+      issueId,
+      ...(after
+        ? {
+            OR: [
+              { createdAt: { lt: after.createdAt } },
+              {
+                AND: [{ createdAt: after.createdAt }, { id: { lt: after.id } }],
               },
             ],
           }

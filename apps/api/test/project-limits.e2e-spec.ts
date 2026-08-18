@@ -67,6 +67,47 @@ describe("Project plan limits (e2e)", () => {
     await expectProjectLimitExceeded(owner);
   }, 60_000);
 
+  it("frees a project slot after delete", async () => {
+    const owner = await registerLoginAndGetOrg(
+      app,
+      "project-delete-slot",
+      "Project Delete Slot Org"
+    );
+    const limit = PLAN_LIMITS[PlanTier.FREE].projects;
+    if (limit === null) {
+      throw new Error("expected a finite Free plan project limit");
+    }
+
+    const created: ProjectResponseWire[] = [];
+    for (let index = 0; index < limit; index += 1) {
+      created.push(
+        await createProject(app, owner.accessToken, owner.orgId, {
+          description: `Cap ${index}`,
+          key: `C${index}`,
+          name: `Cap ${index}`,
+        })
+      );
+    }
+
+    await expectProjectLimitExceeded(owner);
+
+    const firstId = created[0]?.id;
+    if (!firstId) {
+      throw new Error("expected a created project");
+    }
+
+    await request(app.getHttpServer())
+      .delete(`${API_PREFIX}/projects/${firstId}`)
+      .set(authHeaders(owner))
+      .expect(200);
+
+    await createProject(app, owner.accessToken, owner.orgId, {
+      description: "After delete",
+      key: "AFTER",
+      name: "After delete",
+    });
+  }, 60_000);
+
   it("does not cap Team plan projects", async () => {
     const owner = await registerLoginAndGetOrg(
       app,

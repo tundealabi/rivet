@@ -7,12 +7,14 @@ import { DbOptions } from "@/database/database.types";
 import { Prisma } from "@/generated/prisma/client";
 import {
   IssueActivityCreateManyArgs,
+  IssueActivityFindManyArgs,
   IssueCommentCreateArgs,
   IssueCommentDeleteArgs,
   IssueCommentFindFirstArgs,
   IssueCommentFindManyArgs,
   IssueCommentUpdateArgs,
   IssueCreateArgs,
+  IssueDeleteArgs,
   IssueFindFirstArgs,
   IssueFindManyArgs,
   IssueFindUniqueArgs,
@@ -78,12 +80,34 @@ export class IssueRepository {
     return client.issue.updateMany(args);
   }
 
+  async delete<T extends IssueDeleteArgs>(args: T, dbOptions?: DbOptions) {
+    try {
+      const client = this.databaseService.resolveClient(dbOptions);
+      return await client.issue.delete(args);
+    } catch (err) {
+      if (err instanceof PrismaClientKnownRequestError) {
+        if (err.code === DB_PRISMA_ERROR_CODES.NOT_FOUND) {
+          return null;
+        }
+      }
+      throw err;
+    }
+  }
+
   async createManyActivity<T extends IssueActivityCreateManyArgs>(
     args: T,
     dbOptions?: DbOptions
   ) {
     const client = this.databaseService.resolveClient(dbOptions);
     return client.issueActivity.createMany(args);
+  }
+
+  async findManyActivity<T extends IssueActivityFindManyArgs>(
+    args?: T,
+    dbOptions?: DbOptions
+  ) {
+    const client = this.databaseService.resolveClient(dbOptions);
+    return client.issueActivity.findMany(args);
   }
 
   async createComment<T extends IssueCommentCreateArgs>(

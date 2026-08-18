@@ -14,6 +14,14 @@ export enum IssueStatus {
   CANCELLED = "CANCELLED",
 }
 
+export enum IssueActivityField {
+  ASSIGNEE = "ASSIGNEE",
+  DESCRIPTION = "DESCRIPTION",
+  PRIORITY = "PRIORITY",
+  STATUS = "STATUS",
+  TITLE = "TITLE",
+}
+
 /**
  * Allowed status moves, including identity (no-op) so retries of the same
  * status are not rule violations. Illegal edges are a domain rule, not a

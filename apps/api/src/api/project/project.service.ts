@@ -118,6 +118,20 @@ export class ProjectService {
     return this.toResponse(unarchived);
   }
 
+  async deleteProject(id: string): Promise<ProjectResponseWire> {
+    const deleted = await this.projectService.delete(id);
+
+    if (!deleted) {
+      throw new DomainError(
+        "NOT_FOUND",
+        ErrorCode.NOT_FOUND,
+        ErrorMessage.NOT_FOUND
+      );
+    }
+
+    return this.toResponse(deleted);
+  }
+
   private async assertWithinProjectLimit(options?: DbOptions): Promise<void> {
     const organization = await this.orgService.findById(
       this.tenantContext.orgId,

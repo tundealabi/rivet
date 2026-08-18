@@ -24,10 +24,12 @@ import { AuthUserJwtGuard } from "@/modules/auth/auth.guard";
 import {
   CreateIssueCommentRequestDto,
   CreateIssueRequestDto,
+  IssueActivityResponseDto,
   IssueCommentResponseDto,
   IssueResponseDto,
   IssueSummaryQueryDto,
   IssueSummaryResponseDto,
+  ListIssueActivityQueryDto,
   ListIssueCommentsQueryDto,
   ListIssuesQueryDto,
   UpdateIssueCommentRequestDto,
@@ -203,6 +205,64 @@ export class IssueController {
       priority: dto.priority,
       status: dto.status,
       title: dto.title,
+    });
+  }
+
+  @Delete(":id")
+  @RequireOrgRole(OrganizationRole.MEMBER)
+  @ApiEnvelopeResponse(IssueResponseDto, {
+    auth: "required",
+    description: "Delete an issue in the organization from X-ORG-ID",
+    errorResponses: [
+      {
+        description: "Not a member of the organization, or role is viewer",
+        status: HttpStatus.FORBIDDEN,
+      },
+      {
+        description: "Project is archived",
+        status: HttpStatus.CONFLICT,
+      },
+      {
+        description: "Issue not found",
+        status: HttpStatus.NOT_FOUND,
+      },
+    ],
+    httpStatus: HttpStatus.OK,
+    summary: "Delete an issue",
+  })
+  delete(@Param("id", ParseUUIDPipe) id: string): Promise<IssueResponseDto> {
+    return this.service.deleteIssue(id);
+  }
+
+  @Get(":id/activity")
+  @ApiEnvelopeResponse(IssueActivityResponseDto, {
+    auth: "required",
+    description:
+      "List field-change activity on an issue with cursor pagination, newest first",
+    errorResponses: [
+      {
+        description: "Not a member of the organization",
+        status: HttpStatus.FORBIDDEN,
+      },
+      {
+        description: "Issue not found",
+        status: HttpStatus.NOT_FOUND,
+      },
+    ],
+    httpStatus: HttpStatus.OK,
+    isArray: true,
+    summary: "List issue activity",
+  })
+  listActivity(
+    @Param("id", ParseUUIDPipe) issueId: string,
+    @Query() query: ListIssueActivityQueryDto
+  ) {
+    return this.service.listActivity({
+      issueId,
+      pagination: {
+        cursor: query.cursor,
+        limit: query.limit,
+      },
     });
   }
 

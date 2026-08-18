@@ -48,6 +48,11 @@ export interface ListIssueCommentsInput {
   pagination: CursorPaginationInput;
 }
 
+export interface ListIssueActivityInput {
+  issueId: string;
+  pagination: CursorPaginationInput;
+}
+
 export interface UpdateIssueCommentInput {
   body: string;
   commentId: string;

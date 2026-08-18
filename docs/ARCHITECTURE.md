@@ -114,11 +114,11 @@ Roles are a total order (`VIEWER < MEMBER < ADMIN < OWNER`). `OrgMemberGuard` st
 
 Shipped mutating floors:
 
-| Min role | Routes                                                             |
-| -------- | ------------------------------------------------------------------ |
-| MEMBER+  | Create project, create/update issue, create export, create comment |
-| ADMIN+   | Update / archive / unarchive project; org-side invites             |
-| OWNER    | `GET /billing`, `POST /billing/checkout`                           |
+| Min role | Routes                                                                    |
+| -------- | ------------------------------------------------------------------------- |
+| MEMBER+  | Create project, create/update/delete issue, create export, create comment |
+| ADMIN+   | Update / archive / unarchive / delete project; org-side invites           |
+| OWNER    | `GET /billing`, `POST /billing/checkout`                                  |
 
 Owner is distinct from admin on billing only (delete-org still deferred). Members may edit any issue. Comment edit/delete are `MEMBER+` at the route, then **author or ADMIN+** in the service.
 
@@ -234,6 +234,10 @@ Comments live in the **issues** module and are never queried independently of an
 Create is `MEMBER+`. List is any org member (including viewer). Edit/delete: `MEMBER+` at the route, then author or `ADMIN+` in the service. Create is burst-limited per author (`COMMENT_RATE_LIMIT_MAX` in `api/issue`, 10s window). Archived projects reject comment writes (`409` / `PROJECT_ARCHIVED`).
 
 **Verification:** `apps/api/test/issue-comments.e2e-spec.ts`, comment cases in `rbac.e2e-spec.ts` and `tenant-isolation.e2e-spec.ts`.
+
+`GET /issues/:id/activity` lists append-only field-change rows (cursor, newest first). Any org member can read. Delete issue is `MEMBER+` and is refused on archived projects (`409` / `PROJECT_ARCHIVED`). Delete project is `ADMIN+` and cascades issues, comments, activity, and export jobs.
+
+**Verification:** `apps/api/test/issue-activity.e2e-spec.ts`; delete cases in `rbac.e2e-spec.ts` and `tenant-isolation.e2e-spec.ts`.
 
 ---
 

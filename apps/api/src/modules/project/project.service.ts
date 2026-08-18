@@ -230,4 +230,8 @@ export class ProjectService {
       options
     );
   }
+
+  async delete(id: string, options?: DbOptions): Promise<Project | null> {
+    return this.projectRepository.delete({ where: { id } }, options);
+  }
 }

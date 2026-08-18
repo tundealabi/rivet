@@ -1,5 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import type {
+  IssueActivityActorWire,
+  IssueActivityResponseWire,
   IssueAssigneeWire,
   IssueCommentAuthorWire,
   IssueCommentResponseWire,
@@ -26,6 +28,7 @@ import type { DbOptions } from "@/database/database.types";
 import { Project } from "@/generated/prisma/client";
 import { IssueService as IssueModuleService } from "@/modules/issue/issue.service";
 import type {
+  IssueActivityWithActor,
   IssueCommentWithAuthor,
   IssueWithAssignee,
   UpdateIssueCurrent,
@@ -43,6 +46,7 @@ import {
   CreateIssueInput,
   DeleteIssueCommentInput,
   GetIssueSummaryInput,
+  ListIssueActivityInput,
   ListIssueCommentsInput,
   ListIssuesInput,
   UpdateIssueCommentInput,
@@ -233,6 +237,51 @@ export class IssueService {
     }
 
     return this.toResponse(issue, project);
+  }
+
+  async deleteIssue(id: string): Promise<IssueResponseWire> {
+    const issue = await this.issueService.getById({ id });
+    const project = await this.projectService.getActiveById({
+      id: issue.projectId,
+    });
+
+    await this.issueService.delete({ id: issue.id });
+
+    return this.toResponse(issue, project);
+  }
+
+  async listActivity(
+    input: ListIssueActivityInput
+  ): Promise<PaginatedResult<IssueActivityResponseWire>> {
+    await this.issueService.getById({ id: input.issueId });
+
+    const after = this.decodeCursor(input.pagination.cursor);
+
+    const result = await this.issueService.listActivity({
+      after: after
+        ? {
+            createdAt: new Date(after.createdAt),
+            id: after.id,
+          }
+        : undefined,
+      issueId: input.issueId,
+      limit: input.pagination.limit,
+    });
+
+    return Helpers.toCursorPaginatedResult(
+      {
+        items: result.items.map((activity) =>
+          this.toActivityResponse(activity)
+        ),
+        nextCursor: result.next
+          ? Helpers.encodePaginationCursor({
+              createdAt: result.next.createdAt.toISOString(),
+              id: result.next.id,
+            })
+          : null,
+      },
+      input.pagination
+    );
   }
 
   async createComment(
@@ -581,6 +630,33 @@ export class IssueService {
       firstName: author.firstName,
       id: author.id,
       lastName: author.lastName,
+    };
+  }
+
+  private toActivityResponse(
+    activity: IssueActivityWithActor
+  ): IssueActivityResponseWire {
+    return {
+      actor: this.toActivityActor(activity.actor),
+      createdAt: activity.createdAt.toISOString(),
+      field: activity.field as IssueActivityResponseWire["field"],
+      fromValue: activity.fromValue,
+      id: activity.id,
+      toValue: activity.toValue,
+    };
+  }
+
+  private toActivityActor(
+    actor: IssueActivityWithActor["actor"]
+  ): IssueActivityActorWire | null {
+    if (!actor) {
+      return null;
+    }
+
+    return {
+      firstName: actor.firstName,
+      id: actor.id,
+      lastName: actor.lastName,
     };
   }
 }

@@ -6,6 +6,7 @@ import { DatabaseService } from "@/database/database.service";
 import { DbOptions } from "@/database/database.types";
 import {
   ProjectCreateArgs,
+  ProjectDeleteArgs,
   ProjectFindFirstArgs,
   ProjectFindManyArgs,
   ProjectFindUniqueArgs,
@@ -59,6 +60,20 @@ export class ProjectRepository {
     try {
       const client = this.databaseService.resolveClient(dbOptions);
       return await client.project.update(args);
+    } catch (err) {
+      if (err instanceof PrismaClientKnownRequestError) {
+        if (err.code === DB_PRISMA_ERROR_CODES.NOT_FOUND) {
+          return null;
+        }
+      }
+      throw err;
+    }
+  }
+
+  async delete<T extends ProjectDeleteArgs>(args: T, dbOptions?: DbOptions) {
+    try {
+      const client = this.databaseService.resolveClient(dbOptions);
+      return await client.project.delete(args);
     } catch (err) {
       if (err instanceof PrismaClientKnownRequestError) {
         if (err.code === DB_PRISMA_ERROR_CODES.NOT_FOUND) {

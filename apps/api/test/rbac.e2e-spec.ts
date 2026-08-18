@@ -10,10 +10,11 @@ import type {
   ProjectResponseWire,
 } from "@rivet/shared/api";
 import { IDEMPOTENCY_KEY_HEADER } from "@rivet/shared/constants";
-import { ErrorCode } from "@rivet/shared/enums";
+import { ErrorCode, PlanTier } from "@rivet/shared/enums";
 import request from "supertest";
 import type { App } from "supertest/types";
 
+import { DatabaseService } from "@/database/database.service";
 import { AUTH_CONSTANTS } from "@/modules/auth/auth.constants";
 
 import { API_PREFIX } from "./helpers/constants";
@@ -40,6 +41,13 @@ describe("RBAC (e2e)", () => {
     app = await createE2eApp();
 
     owner = await registerLoginAndGetOrg(app, "rbac-owner", "RBAC Org");
+
+    const database = app.get(DatabaseService);
+    await database.client.organization.update({
+      where: { id: owner.orgId },
+      data: { planTier: PlanTier.TEAM },
+    });
+
     admin = await registerLoginAndGetOrg(app, "rbac-admin", "RBAC Admin Own");
     member = await registerLoginAndGetOrg(
       app,
@@ -213,6 +221,31 @@ describe("RBAC (e2e)", () => {
         unarchived.body as ApiSuccessResponseWire<ProjectResponseWire>;
       expect(unarchivedBody.data.archivedAt).toBeNull();
     });
+
+    it("lets an admin delete a project they did not create, and forbids a member", async () => {
+      const stamp = Date.now().toString(36).slice(-4).toUpperCase();
+      const project = await createProject(app, owner.accessToken, owner.orgId, {
+        description: "Delete target created by owner",
+        key: `DL${stamp}`.slice(0, 10),
+        name: `RBAC delete ${Date.now()}`,
+      });
+
+      await expectForbidden(
+        request(app.getHttpServer())
+          .delete(`${API_PREFIX}/projects/${project.id}`)
+          .set(authHeaders(member))
+      );
+
+      await request(app.getHttpServer())
+        .delete(`${API_PREFIX}/projects/${project.id}`)
+        .set(authHeaders(admin))
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .get(`${API_PREFIX}/projects/${project.id}`)
+        .set(authHeaders(admin))
+        .expect(404);
+    });
   });
 
   describe("issues", () => {
@@ -259,6 +292,29 @@ describe("RBAC (e2e)", () => {
       const updatedBody =
         updated.body as ApiSuccessResponseWire<IssueResponseWire>;
       expect(updatedBody.data.title).toBe(updatedTitle);
+    });
+
+    it("lets a member delete an issue and forbids a viewer", async () => {
+      const created = await createIssue(app, owner.accessToken, owner.orgId, {
+        projectId,
+        title: "Issue to delete",
+      });
+
+      await expectForbidden(
+        request(app.getHttpServer())
+          .delete(`${API_PREFIX}/issues/${created.id}`)
+          .set(authHeaders(viewer))
+      );
+
+      await request(app.getHttpServer())
+        .delete(`${API_PREFIX}/issues/${created.id}`)
+        .set(authHeaders(member))
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .get(`${API_PREFIX}/issues/${created.id}`)
+        .set(authHeaders(member))
+        .expect(404);
     });
   });
 

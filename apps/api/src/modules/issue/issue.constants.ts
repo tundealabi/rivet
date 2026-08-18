@@ -20,6 +20,16 @@ export const issueCommentAuthorInclude = {
   },
 } satisfies Prisma.IssueCommentInclude;
 
+export const issueActivityActorInclude = {
+  actor: {
+    select: {
+      firstName: true,
+      id: true,
+      lastName: true,
+    },
+  },
+} satisfies Prisma.IssueActivityInclude;
+
 export const issueListOrderBy = [
   { createdAt: "desc" },
   { id: "desc" },
@@ -29,6 +39,11 @@ export const issueCommentListOrderBy = [
   { createdAt: "asc" },
   { id: "asc" },
 ] as const satisfies Prisma.IssueCommentOrderByWithRelationInput[];
+
+export const issueActivityListOrderBy = [
+  { createdAt: "desc" },
+  { id: "desc" },
+] as const satisfies Prisma.IssueActivityOrderByWithRelationInput[];
 
 /** CSV columns plus cursor keys. Narrower than the issue DTO include. */
 export const issueExportSelect = {
