@@ -2,6 +2,8 @@ import { InjectQueue } from "@nestjs/bullmq";
 import { Injectable } from "@nestjs/common";
 import { Job, Queue } from "bullmq";
 
+import { Trace } from "@/observability";
+
 import { EXPORTS_JOB_NAME, EXPORTS_QUEUE } from "../jobs.constants";
 import type { ExportJobPayload } from "./export.types";
 
@@ -13,7 +15,7 @@ export class ExportQueueService {
   ) {}
 
   enqueue(payload: ExportJobPayload): Promise<Job<ExportJobPayload>> {
-    return this.addIdempotent(payload);
+    return this.addIdempotent(Trace.injectJobContext(payload));
   }
 
   private async addIdempotent(

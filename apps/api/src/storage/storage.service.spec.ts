@@ -216,9 +216,9 @@ describe("StorageService", () => {
     await expect(service.onModuleInit()).resolves.toBeUndefined();
     expect(send.mock.calls[0][0]).toBeInstanceOf(HeadBucketCommand);
     expect(send.mock.calls[1][0]).toBeInstanceOf(PutBucketCorsCommand);
-    expect(warn).toHaveBeenCalledWith(
-      "PutBucketCors is not supported on this endpoint. Using CORS from infrastructure (local: MinIO MINIO_API_CORS_ALLOW_ORIGIN)."
-    );
+    expect(warn).toHaveBeenCalledWith({
+      msg: "s3_put_bucket_cors_unsupported",
+    });
     warn.mockRestore();
   });
 });

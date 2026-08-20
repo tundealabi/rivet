@@ -25,7 +25,10 @@ export async function createE2eApp(options?: {
 
   const moduleFixture: TestingModule = await builder.compile();
 
-  const app = moduleFixture.createNestApplication({ rawBody: true });
+  const app = moduleFixture.createNestApplication({
+    bufferLogs: true,
+    rawBody: true,
+  });
   configureApp(app);
   await app.init();
 

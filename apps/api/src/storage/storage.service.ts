@@ -20,7 +20,7 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 
-import { ENV_KEYS } from "@/common/constants";
+import { ENV_KEYS, LOG_MSG } from "@/common/constants";
 
 import { S3_CLIENT } from "./storage.constants";
 import { exportObjectKey } from "./storage.paths";
@@ -60,11 +60,10 @@ export class StorageService implements OnModuleInit, OnModuleDestroy {
     try {
       await this.ensureBucket();
     } catch (error) {
-      const stack = error instanceof Error ? error.stack : undefined;
-      this.logger.error(
-        "Failed to initialize S3 bucket. Export uploads will fail until object storage is reachable.",
-        stack
-      );
+      this.logger.error({
+        err: toLogError(error),
+        msg: LOG_MSG.s3BucketInitFailed,
+      });
       return;
     }
 
@@ -72,17 +71,16 @@ export class StorageService implements OnModuleInit, OnModuleDestroy {
       await this.applyBucketCors();
     } catch (error) {
       if (isNotImplemented(error)) {
-        this.logger.warn(
-          "PutBucketCors is not supported on this endpoint. Using CORS from infrastructure (local: MinIO MINIO_API_CORS_ALLOW_ORIGIN)."
-        );
+        this.logger.warn({
+          msg: LOG_MSG.s3PutBucketCorsUnsupported,
+        });
         return;
       }
 
-      const stack = error instanceof Error ? error.stack : undefined;
-      this.logger.warn(
-        "Failed to apply bucket CORS. Signed downloads from the browser may be blocked.",
-        stack
-      );
+      this.logger.warn({
+        err: toLogError(error),
+        msg: LOG_MSG.s3PutBucketCorsFailed,
+      });
     }
   }
 
@@ -129,7 +127,10 @@ export class StorageService implements OnModuleInit, OnModuleDestroy {
     }
 
     await this.s3.send(new CreateBucketCommand({ Bucket: this.bucket }));
-    this.logger.log(`Created S3 bucket ${this.bucket}`);
+    this.logger.log({
+      bucket: this.bucket,
+      msg: LOG_MSG.s3BucketCreated,
+    });
   }
 
   private async applyBucketCors(): Promise<void> {
@@ -138,9 +139,9 @@ export class StorageService implements OnModuleInit, OnModuleDestroy {
     }
 
     if (this.corsOrigins.length === 0) {
-      this.logger.warn(
-        "Skipping bucket CORS: no origins from CLIENT_WEB_BASE_URL / APP_CORS_ORIGINS"
-      );
+      this.logger.warn({
+        msg: LOG_MSG.s3BucketCorsSkippedNoOrigins,
+      });
       return;
     }
 
@@ -166,6 +167,10 @@ export class StorageService implements OnModuleInit, OnModuleDestroy {
       })
     );
   }
+}
+
+function toLogError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
 }
 
 function isNotFound(error: unknown): boolean {

@@ -1,4 +1,4 @@
-import { Global, Module } from "@nestjs/common";
+import { Global, MiddlewareConsumer, Module, NestModule } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { APP_GUARD } from "@nestjs/core";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
@@ -10,6 +10,7 @@ import {
   THROTTLER_SHORT,
 } from "@/common/constants";
 import { OrgMemberGuard, OrgRoleGuard } from "@/common/guards";
+import { RequestIdMiddleware } from "@/common/middleware";
 import {
   HashService,
   TenantContextService,
@@ -73,4 +74,8 @@ import { OrgMemberModule } from "@/modules/org-member/org-member.module";
     OrgMemberModule,
   ],
 })
-export class CommonModule {}
+export class CommonModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(RequestIdMiddleware).forRoutes("*");
+  }
+}

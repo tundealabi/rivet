@@ -11,11 +11,15 @@ describe("ThrottlerGuard (e2e)", () => {
 
     try {
       for (let index = 0; index < 3; index += 1) {
-        await request(app.getHttpServer()).get(API_PREFIX).expect(200);
+        await request(app.getHttpServer())
+          .post(`${API_PREFIX}/auth/login`)
+          .send({})
+          .expect(400);
       }
 
       const res = await request(app.getHttpServer())
-        .get(API_PREFIX)
+        .post(`${API_PREFIX}/auth/login`)
+        .send({})
         .expect(429);
 
       const body = res.body as ApiGeneralErrorResponseWire;

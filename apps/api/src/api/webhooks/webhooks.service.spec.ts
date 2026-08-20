@@ -8,6 +8,7 @@ import { TenantContextService } from "@/common/services";
 import { DatabaseService } from "@/database/database.service";
 import { OrgService } from "@/modules/org/org.service";
 import { StripeEventService } from "@/modules/stripe-event/stripe-event.service";
+import { Metrics } from "@/observability";
 import { StripeService } from "@/stripe/stripe.service";
 
 import { WebhooksService } from "./webhooks.service";
@@ -103,14 +104,20 @@ const rawBody = Buffer.from("{}");
 const signature = "t=1,v1=sig";
 
 describe("WebhooksService.handleStripeWebhook", () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   it("rejects a missing signature without calling Stripe constructEvent", async () => {
     const { constructEvent, service } = createService();
+    const recordStripeWebhook = jest.spyOn(Metrics, "recordStripeWebhook");
 
     await expect(
       service.handleStripeWebhook({ rawBody, signature: undefined })
     ).rejects.toBeInstanceOf(BadRequestException);
 
     expect(constructEvent).not.toHaveBeenCalled();
+    expect(recordStripeWebhook).toHaveBeenCalledWith("bad_signature");
   });
 
   it("maps constructEvent failure to 400", async () => {
@@ -131,6 +138,7 @@ describe("WebhooksService.handleStripeWebhook", () => {
         .fn()
         .mockReturnValue(subscriptionEvent({ type: "invoice.paid" })),
     });
+    const recordStripeWebhook = jest.spyOn(Metrics, "recordStripeWebhook");
 
     await expect(
       service.handleStripeWebhook({ rawBody, signature })
@@ -138,6 +146,7 @@ describe("WebhooksService.handleStripeWebhook", () => {
 
     expect(findByStripeCustomerId).not.toHaveBeenCalled();
     expect(transaction).not.toHaveBeenCalled();
+    expect(recordStripeWebhook).toHaveBeenCalledWith("ignored");
   });
 
   it("returns without a transaction when the price is not PRO", async () => {
@@ -181,6 +190,7 @@ describe("WebhooksService.handleStripeWebhook", () => {
       transaction,
       updateBillingFromSubscription,
     } = createService();
+    const recordStripeWebhook = jest.spyOn(Metrics, "recordStripeWebhook");
 
     await service.handleStripeWebhook({ rawBody, signature });
 
@@ -201,16 +211,19 @@ describe("WebhooksService.handleStripeWebhook", () => {
       },
       { tx: {} }
     );
+    expect(recordStripeWebhook).toHaveBeenCalledWith("applied");
   });
 
   it("skips the plan update when the event id is already processed", async () => {
     const { service, updateBillingFromSubscription } = createService({
       insert: jest.fn().mockResolvedValue({ outcome: "already_processed" }),
     });
+    const recordStripeWebhook = jest.spyOn(Metrics, "recordStripeWebhook");
 
     await service.handleStripeWebhook({ rawBody, signature });
 
     expect(updateBillingFromSubscription).not.toHaveBeenCalled();
+    expect(recordStripeWebhook).toHaveBeenCalledWith("already_processed");
   });
 
   it("sets FREE and clears the subscription id on subscription.deleted", async () => {

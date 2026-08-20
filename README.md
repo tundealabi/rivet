@@ -33,7 +33,8 @@ rivet/
 │   └── web/             @rivet/web - Vite + React
 ├── packages/
 │   └── shared/          @rivet/shared - wire types, envelope, shared constants
-├── docker-compose.yml   Postgres + Redis
+├── docker-compose.yml   Postgres, Redis, MinIO, Prometheus, Grafana, Tempo
+├── docker/              Compose configs (Prometheus, Tempo, Grafana)
 └── docs/
 ```
 
@@ -41,13 +42,13 @@ rivet/
 
 - Node.js 20+
 - pnpm 10+
-- Docker (Postgres + Redis)
+- Docker (Postgres, Redis, MinIO, Prometheus, Grafana, Tempo)
 
 ## Getting started
 
 ```bash
 pnpm install
-pnpm docker:up
+pnpm docker:up    # Postgres, Redis, MinIO, Prometheus, Grafana, Tempo
 
 # After apps exist:
 # cp .env.example apps/api/.env
@@ -55,22 +56,25 @@ pnpm docker:up
 pnpm dev          # build shared + run all apps
 pnpm dev:api      # http://localhost:8090
 pnpm dev:web      # http://localhost:5173
+
+# Grafana (local): http://localhost:3001  (admin / admin)
+# Production: Grafana Cloud — see OBSERVABILITY.md
 ```
 
 ## Scripts
 
-| Command            | Description                         |
-| ------------------ | ----------------------------------- |
-| `pnpm install`     | Install workspace dependencies      |
-| `pnpm dev`         | Build shared + run apps in parallel |
-| `pnpm dev:api`     | API only                            |
-| `pnpm dev:web`     | Web only                            |
-| `pnpm build`       | Build all packages                  |
-| `pnpm typecheck`   | Typecheck all packages              |
-| `pnpm lint`        | ESLint                              |
-| `pnpm format`      | Prettier                            |
-| `pnpm docker:up`   | Start Postgres + Redis              |
-| `pnpm docker:down` | Stop containers                     |
+| Command            | Description                                              |
+| ------------------ | -------------------------------------------------------- |
+| `pnpm install`     | Install workspace dependencies                           |
+| `pnpm dev`         | Build shared + run apps in parallel                      |
+| `pnpm dev:api`     | API only                                                 |
+| `pnpm dev:web`     | Web only                                                 |
+| `pnpm build`       | Build all packages                                       |
+| `pnpm typecheck`   | Typecheck all packages                                   |
+| `pnpm lint`        | ESLint                                                   |
+| `pnpm format`      | Prettier                                                 |
+| `pnpm docker:up`   | Start Postgres, Redis, MinIO, Prometheus, Grafana, Tempo |
+| `pnpm docker:down` | Stop containers                                          |
 
 ## Stack
 

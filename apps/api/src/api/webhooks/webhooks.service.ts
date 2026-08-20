@@ -8,6 +8,7 @@ import { TenantContextService } from "@/common/services";
 import { DatabaseService } from "@/database/database.service";
 import { OrgService } from "@/modules/org/org.service";
 import { StripeEventService } from "@/modules/stripe-event/stripe-event.service";
+import { Metrics } from "@/observability";
 import { StripeService } from "@/stripe/stripe.service";
 
 import {
@@ -36,45 +37,57 @@ export class WebhooksService {
     const billingUpdate = this.billingUpdateFromEvent(event);
 
     if (!billingUpdate) {
+      Metrics.recordStripeWebhook("ignored");
       return;
     }
 
-    const organization = await this.orgService.findByStripeCustomerId({
-      stripeCustomerId: billingUpdate.stripeCustomerId,
-    });
+    try {
+      const organization = await this.orgService.findByStripeCustomerId({
+        stripeCustomerId: billingUpdate.stripeCustomerId,
+      });
 
-    if (!organization) {
-      throw new DomainError(
-        "NOT_FOUND",
-        ErrorCode.NOT_FOUND,
-        ErrorMessage.NOT_FOUND
+      if (!organization) {
+        Metrics.recordStripeWebhook("ignored");
+        throw new DomainError(
+          "NOT_FOUND",
+          ErrorCode.NOT_FOUND,
+          ErrorMessage.NOT_FOUND
+        );
+      }
+
+      await this.tenantContext.runWithTenantContext(
+        { orgId: organization.id },
+        () =>
+          this.databaseService.client.$transaction(async (tx) => {
+            const options = { tx };
+            const inserted = await this.stripeEventService.insert(
+              { id: event.id, type: event.type },
+              options
+            );
+
+            if (inserted.outcome === "already_processed") {
+              Metrics.recordStripeWebhook("already_processed");
+              return;
+            }
+
+            await this.orgService.updateBillingFromSubscription(
+              {
+                orgId: organization.id,
+                planTier: billingUpdate.planTier,
+                stripeSubscriptionId: billingUpdate.stripeSubscriptionId,
+              },
+              options
+            );
+            Metrics.recordStripeWebhook("applied");
+          })
       );
+    } catch (error) {
+      if (!(error instanceof DomainError)) {
+        Metrics.recordStripeWebhook("error");
+      }
+
+      throw error;
     }
-
-    await this.tenantContext.runWithTenantContext(
-      { orgId: organization.id },
-      () =>
-        this.databaseService.client.$transaction(async (tx) => {
-          const options = { tx };
-          const inserted = await this.stripeEventService.insert(
-            { id: event.id, type: event.type },
-            options
-          );
-
-          if (inserted.outcome === "already_processed") {
-            return;
-          }
-
-          await this.orgService.updateBillingFromSubscription(
-            {
-              orgId: organization.id,
-              planTier: billingUpdate.planTier,
-              stripeSubscriptionId: billingUpdate.stripeSubscriptionId,
-            },
-            options
-          );
-        })
-    );
   }
 
   private verifyStripeEvent(input: HandleStripeWebhookInput): Stripe.Event {
@@ -193,6 +206,7 @@ export class WebhooksService {
   }
 
   private invalidSignatureError(): BadRequestException {
+    Metrics.recordStripeWebhook("bad_signature");
     return new BadRequestException({
       code: ErrorCode.VALIDATION_ERROR,
       message: ErrorMessage.VALIDATION_ERROR,

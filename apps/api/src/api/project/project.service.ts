@@ -14,6 +14,7 @@ import { Project } from "@/generated/prisma/client";
 import { OrgService } from "@/modules/org/org.service";
 import { ProjectService as ProjectModuleService } from "@/modules/project/project.service";
 import type { ProjectWithCreator } from "@/modules/project/project.types";
+import { Metrics } from "@/observability";
 
 import {
   CreateProjectInput,
@@ -158,6 +159,7 @@ export class ProjectService {
     );
 
     if (projectCount >= limit) {
+      Metrics.recordQuotaRejection("projects");
       throw new DomainError(
         "TOO_MANY_REQUESTS",
         ErrorCode.ORG_PROJECT_LIMIT_EXCEEDED,

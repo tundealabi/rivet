@@ -15,22 +15,9 @@ import { ApiResponseState, ErrorCode, ErrorMessage } from "@rivet/shared/enums";
 import { Request, Response } from "express";
 import { ZodValidationException } from "nestjs-zod";
 
+import { isUnprefixedProbePath, LOG_MSG } from "@/common/constants";
 import { DomainError, ValidationError } from "@/common/errors";
 import { Helpers } from "@/common/helpers";
-
-function buildRequestLog(request: Request) {
-  return {
-    body: Helpers.redactSensitiveFields(
-      request.body as Record<string, unknown> | undefined
-    ),
-    method: request.method,
-    params: request.params,
-    query: Helpers.redactSensitiveFields(request.query),
-    requestId: request.requestId,
-    timestamp: new Date().toISOString(),
-    url: Helpers.redactSensitiveUrl(request.originalUrl),
-  };
-}
 
 function buildValidationErrorBody(
   requestId: string,
@@ -88,22 +75,36 @@ export class ApiExceptionFilter implements ExceptionFilter {
     const request = ctx.getRequest<Request>();
     const timestamp = new Date().toISOString();
     const requestId = request.requestId ?? "unknown";
-    const requestLog = buildRequestLog(request);
+    const requestLog = Helpers.buildRequestErrorLog(request);
+
+    if (isUnprefixedProbePath(request.path ?? request.originalUrl)) {
+      if (exception instanceof HttpException) {
+        const status = exception.getStatus();
+        const exceptionResponse = exception.getResponse();
+
+        response
+          .status(status)
+          .json(
+            typeof exceptionResponse === "string"
+              ? { message: exceptionResponse, status: "error" }
+              : exceptionResponse
+          );
+        return;
+      }
+    }
 
     if (exception instanceof ValidationError) {
       const fields = exception.fields;
       const body = buildValidationErrorBody(requestId, timestamp, fields);
 
-      this.logger.error(
-        {
-          errorMessage: ErrorMessage.VALIDATION_ERROR,
-          errorCode: ErrorCode.VALIDATION_ERROR,
-          errorResponse: fields,
-          errorStatus: HttpStatus.BAD_REQUEST,
-          request: requestLog,
-        },
-        `${ApiExceptionFilter.name}@ValidationError:${HttpStatus.BAD_REQUEST}`
-      );
+      this.logger.error({
+        errorCode: ErrorCode.VALIDATION_ERROR,
+        errorMessage: ErrorMessage.VALIDATION_ERROR,
+        errorResponse: fields,
+        errorStatus: HttpStatus.BAD_REQUEST,
+        msg: LOG_MSG.validationError,
+        request: requestLog,
+      });
 
       response.status(HttpStatus.BAD_REQUEST).json(body);
       return;
@@ -125,15 +126,13 @@ export class ApiExceptionFilter implements ExceptionFilter {
         timestamp,
       };
 
-      this.logger.error(
-        {
-          errorMessage: exception.message,
-          errorCode: exception.code,
-          errorStatus: status,
-          request: requestLog,
-        },
-        `${ApiExceptionFilter.name}@DomainError:${status}`
-      );
+      this.logger.error({
+        errorCode: exception.code,
+        errorMessage: exception.message,
+        errorStatus: status,
+        msg: LOG_MSG.domainError,
+        request: requestLog,
+      });
 
       response.status(status).json(body);
       return;
@@ -143,16 +142,14 @@ export class ApiExceptionFilter implements ExceptionFilter {
       const fields = flattenZodErrorToFields(exception.getZodError());
       const body = buildValidationErrorBody(requestId, timestamp, fields);
 
-      this.logger.error(
-        {
-          errorMessage: ErrorMessage.VALIDATION_ERROR,
-          errorCode: ErrorCode.VALIDATION_ERROR,
-          errorResponse: fields,
-          errorStatus: HttpStatus.BAD_REQUEST,
-          request: requestLog,
-        },
-        `${ApiExceptionFilter.name}@ValidationException:${HttpStatus.BAD_REQUEST}`
-      );
+      this.logger.error({
+        errorCode: ErrorCode.VALIDATION_ERROR,
+        errorMessage: ErrorMessage.VALIDATION_ERROR,
+        errorResponse: fields,
+        errorStatus: HttpStatus.BAD_REQUEST,
+        msg: LOG_MSG.validationError,
+        request: requestLog,
+      });
 
       response.status(HttpStatus.BAD_REQUEST).json(body);
       return;
@@ -180,15 +177,13 @@ export class ApiExceptionFilter implements ExceptionFilter {
         timestamp,
       };
 
-      this.logger.error(
-        {
-          errorMessage: message,
-          errorCode: code,
-          errorStatus: status,
-          request: requestLog,
-        },
-        `${ApiExceptionFilter.name}@HttpException:${status}`
-      );
+      this.logger.error({
+        errorCode: code,
+        errorMessage: message,
+        errorStatus: status,
+        msg: LOG_MSG.httpException,
+        request: requestLog,
+      });
 
       response.status(status).json(body);
       return;
@@ -197,15 +192,12 @@ export class ApiExceptionFilter implements ExceptionFilter {
     const applicationError =
       exception instanceof Error ? exception : new Error(String(exception));
 
-    this.logger.error(
-      {
-        errorMessage: applicationError.message,
-        errorStack: applicationError.stack,
-        errorStatus: HttpStatus.INTERNAL_SERVER_ERROR,
-        request: requestLog,
-      },
-      `${ApiExceptionFilter.name}@ApplicationError:${HttpStatus.INTERNAL_SERVER_ERROR}`
-    );
+    this.logger.error({
+      err: applicationError,
+      errorStatus: HttpStatus.INTERNAL_SERVER_ERROR,
+      msg: LOG_MSG.unhandledException,
+      request: requestLog,
+    });
 
     const body: ApiGeneralErrorResponseWire = {
       data: null,

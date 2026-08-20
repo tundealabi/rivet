@@ -49,6 +49,10 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     return this._client;
   }
 
+  async ping(): Promise<void> {
+    await this._baseClient.$queryRawUnsafe("SELECT 1");
+  }
+
   isUniqueConstraintViolationError(error: unknown, field?: string): boolean {
     if (
       !(error instanceof Prisma.PrismaClientKnownRequestError) ||

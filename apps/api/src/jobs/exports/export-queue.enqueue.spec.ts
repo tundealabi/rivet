@@ -18,9 +18,17 @@ describe("ExportQueueService.enqueue", () => {
 
     await service.enqueue(payload);
 
-    expect(add).toHaveBeenCalledWith(EXPORTS_JOB_NAME, payload, {
-      jobId: payload.exportJobId,
-    });
+    expect(add).toHaveBeenCalledWith(
+      EXPORTS_JOB_NAME,
+      expect.objectContaining({
+        exportJobId: payload.exportJobId,
+        organizationId: payload.organizationId,
+        requestedById: payload.requestedById,
+      }),
+      {
+        jobId: payload.exportJobId,
+      }
+    );
   });
 
   it("returns the existing job when the id is already in the queue", async () => {

@@ -38,6 +38,7 @@ import type {
 } from "@/modules/org-invite/org-invite.types";
 import { OrgMemberService } from "@/modules/org-member/org-member.service";
 import { UserService } from "@/modules/user/user.service";
+import { Metrics } from "@/observability";
 
 import {
   OrgInvitesListCursorSchema,
@@ -527,6 +528,7 @@ export class OrganizationService {
     );
 
     if (memberCount + activeInviteCount + additionalSeats > limit) {
+      Metrics.recordQuotaRejection("members");
       throw new DomainError(
         "TOO_MANY_REQUESTS",
         ErrorCode.ORG_MEMBER_LIMIT_EXCEEDED,

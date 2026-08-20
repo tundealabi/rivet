@@ -1,6 +1,7 @@
 import { Readable } from "node:stream";
 
 import { ExportJobStatus, IssuePriority, IssueStatus } from "@generated/prisma";
+import { Logger } from "@nestjs/common";
 import { ErrorCode, ErrorMessage } from "@rivet/shared/enums";
 import { type Job, UnrecoverableError } from "bullmq";
 
@@ -9,6 +10,7 @@ import { TenantContextService } from "@/common/services";
 import { ExportService } from "@/modules/export/export.service";
 import { IssueService } from "@/modules/issue/issue.service";
 import type { IssueExportRow } from "@/modules/issue/issue.types";
+import { Metrics } from "@/observability";
 import { StorageService } from "@/storage/storage.service";
 
 import {
@@ -152,6 +154,7 @@ describe("ExportJobProcessor", () => {
       }
     });
     const iterateForExport = jest.fn(() => asyncOf(exportRow));
+    const recordExportJob = jest.spyOn(Metrics, "recordExportJob");
 
     const instance = processor({
       exportService: {
@@ -188,6 +191,7 @@ describe("ExportJobProcessor", () => {
       objectKey,
       status: ExportJobStatus.SUCCEEDED,
     });
+    expect(recordExportJob).toHaveBeenCalledWith("succeeded");
   });
 
   it("maps unassigned and assignee snapshot filters onto the iterator", async () => {
@@ -236,6 +240,7 @@ describe("ExportJobProcessor", () => {
     const update = jest.fn();
     const iterateForExport = jest.fn(() => asyncOf(exportRow));
     const upload = jest.fn();
+    const recordExportJob = jest.spyOn(Metrics, "recordExportJob");
 
     await processor({
       exportService: {
@@ -253,9 +258,12 @@ describe("ExportJobProcessor", () => {
     expect(update).not.toHaveBeenCalled();
     expect(iterateForExport).not.toHaveBeenCalled();
     expect(upload).not.toHaveBeenCalled();
+    expect(recordExportJob).not.toHaveBeenCalled();
   });
 
   it("marks FAILED and rethrows when upload fails so BullMQ can retry", async () => {
+    const error = jest.spyOn(Logger.prototype, "error").mockImplementation();
+    const recordExportJob = jest.spyOn(Metrics, "recordExportJob");
     const update = jest.fn().mockResolvedValue({});
     const boom = new Error("S3 down");
 
@@ -278,6 +286,15 @@ describe("ExportJobProcessor", () => {
       error: "S3 down",
       status: ExportJobStatus.FAILED,
     });
+    expect(error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        err: boom,
+        exportJobId: payload.exportJobId,
+        msg: "export_failed",
+        orgId: payload.organizationId,
+      })
+    );
+    expect(recordExportJob).toHaveBeenCalledWith("failed");
   });
 
   it("marks FAILED and throws UnrecoverableError when a cap is exceeded", async () => {

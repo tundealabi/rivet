@@ -5,6 +5,7 @@ import { Processor, WorkerHost } from "@nestjs/bullmq";
 import { Injectable, Logger } from "@nestjs/common";
 import { Job, UnrecoverableError } from "bullmq";
 
+import { LOG_MSG } from "@/common/constants";
 import { DomainError } from "@/common/errors";
 import { TenantContextService } from "@/common/services";
 import { ExportService } from "@/modules/export/export.service";
@@ -13,6 +14,7 @@ import type {
   IssueExportRow,
   IterateIssuesForExportInput,
 } from "@/modules/issue/issue.types";
+import { Metrics, Trace } from "@/observability";
 import { StorageService } from "@/storage/storage.service";
 
 import { EXPORTS_QUEUE } from "../jobs.constants";
@@ -40,84 +42,107 @@ export class ExportJobProcessor extends WorkerHost {
   }
 
   async process(job: Job<ExportJobPayload>): Promise<void> {
-    const { exportJobId, organizationId, requestedById } = job.data;
+    const { organizationId, requestedById } = job.data;
 
     await this.tenantContext.runWithTenantContext(
       { orgId: organizationId, userId: requestedById },
-      async () => {
-        const exportJob = await this.loadJob(exportJobId);
-
-        if (
-          exportJob.status === ExportJobStatus.SUCCEEDED &&
-          exportJob.objectKey
-        ) {
-          this.logger.log(`ExportJob ${exportJobId} already succeeded`);
-          return;
-        }
-
-        try {
-          await this.exportService.update(exportJobId, {
-            error: null,
-            status: ExportJobStatus.RUNNING,
-          });
-
-          const objectKey = this.storage.objectKey(organizationId, exportJobId);
-          const startedAtMs = Date.now();
-          let rowCount = 0;
-
-          await this.storage.upload(
-            objectKey,
-            Readable.from(
-              encodeCsv(
-                this.cappedRows(
-                  this.issueService.iterateForExport({
-                    ...issueFiltersFromExportJob(exportJob),
-                    limit: EXPORT_WORKER_PAGE_SIZE,
-                  }),
-                  startedAtMs,
-                  () => {
-                    rowCount += 1;
-                    return rowCount;
-                  }
-                )
-              ),
-              { encoding: "utf8" }
-            )
-          );
-
-          await this.exportService.update(exportJobId, {
-            error: null,
-            expiresAt: new Date(Date.now() + EXPORT_OBJECT_TTL_MS),
-            objectKey,
-            status: ExportJobStatus.SUCCEEDED,
-          });
-
-          this.logger.log(`ExportJob ${exportJobId} succeeded`);
-        } catch (error) {
-          const message = errorMessage(error);
-
-          try {
-            await this.exportService.update(exportJobId, {
-              error: message,
-              status: ExportJobStatus.FAILED,
-            });
-          } catch (updateError) {
-            const stack =
-              updateError instanceof Error ? updateError.stack : undefined;
-            this.logger.error(
-              `Failed to mark ExportJob ${exportJobId} as FAILED`,
-              stack
-            );
-          }
-
-          if (error instanceof ExportCapError) {
-            throw new UnrecoverableError(message);
-          }
-
-          throw error;
-        }
-      }
+      () =>
+        Trace.runWithExportProcess(job.data, () => this.processWithinSpan(job))
     );
+  }
+
+  private async processWithinSpan(job: Job<ExportJobPayload>): Promise<void> {
+    const { exportJobId, organizationId } = job.data;
+    const exportJob = await this.loadJob(exportJobId);
+
+    if (exportJob.status === ExportJobStatus.SUCCEEDED && exportJob.objectKey) {
+      this.logger.log({
+        exportJobId,
+        msg: LOG_MSG.exportAlreadySucceeded,
+        orgId: organizationId,
+      });
+      return;
+    }
+
+    const endTimer = Metrics.startExportJobTimer();
+
+    try {
+      await this.exportService.update(exportJobId, {
+        error: null,
+        status: ExportJobStatus.RUNNING,
+      });
+
+      const objectKey = this.storage.objectKey(organizationId, exportJobId);
+      const startedAtMs = Date.now();
+      let rowCount = 0;
+
+      await this.storage.upload(
+        objectKey,
+        Readable.from(
+          encodeCsv(
+            this.cappedRows(
+              this.issueService.iterateForExport({
+                ...issueFiltersFromExportJob(exportJob),
+                limit: EXPORT_WORKER_PAGE_SIZE,
+              }),
+              startedAtMs,
+              () => {
+                rowCount += 1;
+                return rowCount;
+              }
+            )
+          ),
+          { encoding: "utf8" }
+        )
+      );
+
+      await this.exportService.update(exportJobId, {
+        error: null,
+        expiresAt: new Date(Date.now() + EXPORT_OBJECT_TTL_MS),
+        objectKey,
+        status: ExportJobStatus.SUCCEEDED,
+      });
+
+      Metrics.recordExportJob("succeeded");
+      this.logger.log({
+        exportJobId,
+        msg: LOG_MSG.exportSucceeded,
+        orgId: organizationId,
+        rowCount,
+      });
+    } catch (error) {
+      Metrics.recordExportJob("failed");
+      this.logger.error({
+        err: toLogError(error),
+        exportJobId,
+        msg: LOG_MSG.exportFailed,
+        orgId: organizationId,
+      });
+
+      const message = errorMessage(error);
+
+      try {
+        await this.exportService.update(exportJobId, {
+          error: message,
+          status: ExportJobStatus.FAILED,
+        });
+      } catch (updateError) {
+        this.logger.error({
+          err: toLogError(updateError),
+          exportJobId,
+          msg: LOG_MSG.exportStatusUpdateFailed,
+          orgId: organizationId,
+        });
+      }
+
+      if (error instanceof ExportCapError) {
+        throw new UnrecoverableError(message);
+      }
+
+      throw error;
+    } finally {
+      endTimer();
+    }
   }
 
   private async loadJob(exportJobId: string): Promise<ExportJob> {
@@ -172,4 +197,8 @@ function errorMessage(error: unknown): string {
   }
 
   return "Export failed";
+}
+
+function toLogError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
 }

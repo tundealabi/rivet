@@ -1,0 +1,16 @@
+export const LOG_MSG = {
+  domainError: "domain_error",
+  exportAlreadySucceeded: "export_already_succeeded",
+  exportFailed: "export_failed",
+  exportStatusUpdateFailed: "export_status_update_failed",
+  exportSucceeded: "export_succeeded",
+  httpException: "http_exception",
+  httpRequest: "http_request",
+  s3BucketCorsSkippedNoOrigins: "s3_bucket_cors_skipped_no_origins",
+  s3BucketCreated: "s3_bucket_created",
+  s3BucketInitFailed: "s3_bucket_init_failed",
+  s3PutBucketCorsFailed: "s3_put_bucket_cors_failed",
+  s3PutBucketCorsUnsupported: "s3_put_bucket_cors_unsupported",
+  unhandledException: "unhandled_exception",
+  validationError: "validation_error",
+} as const;

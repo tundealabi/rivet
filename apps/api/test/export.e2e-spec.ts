@@ -229,6 +229,14 @@ describe("Issue CSV export (e2e)", () => {
 
     const body = res.body as ApiGeneralErrorResponseWire;
     expect(body.error.code).toBe(ErrorCode.EXPORT_QUOTA_EXCEEDED);
+
+    const metrics = await request(app.getHttpServer())
+      .get("/metrics")
+      .expect(200);
+
+    expect(metrics.text).toMatch(
+      /quota_rejections_total\{kind="exports"\} [1-9]\d*/
+    );
   });
 
   it(

@@ -295,6 +295,42 @@ Unknown customer, unhandled `type`, or non-PRO price → **200** (do not retry).
 
 ---
 
+## Observability
+
+API process only (HTTP + the BullMQ worker in the same Nest app). No browser RUM. Logs, metrics, and traces are complementary — same request, different questions:
+
+| Signal      | Question                               | Rivet example                                 |
+| ----------- | -------------------------------------- | --------------------------------------------- |
+| **Logs**    | What happened in this event?           | `export_failed` `{ exportJobId, orgId, err }` |
+| **Metrics** | How often / how bad is it _right now_? | `export_jobs_total{status="failed"}`          |
+| **Traces**  | Where did _this_ request spend time?   | `POST /exports` → worker → MinIO              |
+
+`requestId` is the same id on the API envelope, structured JSON logs, and span attributes. Pino (`nestjs-pino`) is the app logger; pretty-print when `NODE_ENV !== production`. Tokens, cookies, passwords, and raw Stripe bodies are not logged.
+
+Probes are unversioned, **no** `/api` prefix, **no** JWT, **no** envelope, skip throttle (same idea as Stripe webhooks). The Nest hello route is gone.
+
+| Method | Path       | Meaning                                                                              |
+| ------ | ---------- | ------------------------------------------------------------------------------------ |
+| `GET`  | `/health`  | Liveness: process is up. No dependency checks.                                       |
+| `GET`  | `/ready`   | Readiness: Postgres **and** Redis respond. MinIO is **not** on ready (only exports). |
+| `GET`  | `/metrics` | Prometheus text (`prom-client`). Pull scrape is the source of truth.                 |
+
+HTTP middleware records `http_requests_total` / `http_request_duration_seconds` with **route templates** (probes skipped, including the `http_request` log so scrapes do not flood stdout). Business counters sit at existing call sites: `export_jobs_total`, `stripe_webhooks_total{outcome}`, `quota_rejections_total{kind}`.
+
+OpenTelemetry SDK starts **before** Nest (`src/observability/`). Service name is `rivet-api`. Auto-instrument HTTP, `pg`/Prisma, Redis, AWS SDK (MinIO). Manual `export.process` span; W3C `traceparent` on the BullMQ payload so the worker links to `POST /exports`. OTLP HTTP to `OTEL_EXPORTER_OTLP_ENDPOINT` (local Tempo `localhost:4318`; Grafana Cloud in production via `OTEL_EXPORTER_OTLP_HEADERS`). Soft-fail if the backend is down. Sampling is always-on locally; production sets `OTEL_TRACES_SAMPLER`. Jest sets `OTEL_SDK_DISABLED`. Unit/e2e do **not** require Grafana/Prometheus/Tempo.
+
+Local Compose adds Prometheus (scrapes `host.docker.internal:8090/metrics`), Tempo (OTLP `4318`), and Grafana (`http://localhost:3001`). Production **remote_writes** the same `prom-client` registry to Grafana Cloud when `OTEL_METRICS_REMOTE_WRITE_URL` is set (`GET /metrics` can require `OTEL_METRICS_BEARER_TOKEN`). JSON logs stay on **stdout** (Render). **No Loki.** One provisioned dashboard (HTTP + exports + webhooks + quota). Alert rules live in Grafana, not Nest (no Slack/PagerDuty):
+
+- export failures — `increase(export_jobs_total{status="failed"}[5m]) > 0`
+- webhook errors — `increase(stripe_webhooks_total{outcome="error"}[5m]) > 0` (`bad_signature` is noise, not this alert)
+- quota exhaustion — `increase(quota_rejections_total[5m]) > 0` (product signal; severity low)
+
+Phased plan, production Grafana Cloud runbook, and how to force a firing alert: [`OBSERVABILITY.md`](../OBSERVABILITY.md).
+
+**Verification:** `apps/api/test/app.e2e-spec.ts` (probes + `/metrics`).
+
+---
+
 ## Cross-module reads
 
 Compose in `api/` or `use-cases/` - batch-fetch related entities and map, rather than cross-schema Prisma `include` across modules. Comments live inside the **issues** module (never queried independently of an issue).

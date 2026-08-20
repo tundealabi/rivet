@@ -14,6 +14,7 @@ import { ExportQueueService } from "@/jobs/exports/export-queue.service";
 import { ExportService as ExportModuleService } from "@/modules/export/export.service";
 import { OrgService } from "@/modules/org/org.service";
 import { ProjectService as ProjectModuleService } from "@/modules/project/project.service";
+import { Metrics } from "@/observability";
 import { StorageService } from "@/storage/storage.service";
 
 import {
@@ -135,6 +136,7 @@ export class ExportService {
     const limit =
       PLAN_LIMITS[organization.planTier as PlanTier].exportsPerMonth;
     if (limit !== null && usedThisMonth >= limit) {
+      Metrics.recordQuotaRejection("exports");
       throw new DomainError(
         "TOO_MANY_REQUESTS",
         ErrorCode.EXPORT_QUOTA_EXCEEDED,

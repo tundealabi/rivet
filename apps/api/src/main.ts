@@ -1,3 +1,5 @@
+import "./observability/instrument";
+
 import { Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { NestFactory } from "@nestjs/core";
@@ -17,9 +19,13 @@ import {
   ApiValidationErrorEntity,
   ApiValidationErrorResponseEntity,
 } from "@/common/entities";
+import { startMetricsRemoteWrite } from "@/observability";
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { rawBody: true });
+  const app = await NestFactory.create(AppModule, {
+    bufferLogs: true,
+    rawBody: true,
+  });
 
   configureApp(app);
 
@@ -72,6 +78,7 @@ async function bootstrap() {
   app.enableShutdownHooks();
 
   await app.listen(port);
+  startMetricsRemoteWrite();
 
   logger.log(`==========================================================`);
 
