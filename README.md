@@ -12,17 +12,17 @@ A lightweight issue tracker with organizations, role-based access, Stripe billin
 - **Multi-org membership** - one user, many orgs; switch active org per session
 - **Projects & issues** - track work with status, priority, assignees, and comments
 - **RBAC** - Owner, Admin, Member, Viewer
-- **Billing** - Free / Pro / Team tiers via Stripe (test mode in dev)
+- **Billing** - Free / Pro via Stripe Checkout (test mode in dev); Team is an unlimited fixture tier
 - **Async CSV export** - background job with retries; no blocking downloads
 - **Observability** - structured logs, metrics, traces, and alerts on the API
 
 ## v1 boundaries
 
-**Included:** email/password auth with refresh tokens, RLS tenant isolation, Stripe checkout + webhooks, export jobs, rate limits by plan tier, CI with isolation + RBAC tests.
+**Included:** email/password auth with refresh tokens, application-layer tenant isolation, Stripe checkout + webhooks, export jobs, global HTTP rate limits, plan caps (`PLAN_LIMITS`), GitHub Actions CI (lint, typecheck, unit, build, e2e including isolation + RBAC).
 
-**Not yet:** real-time WebSocket updates, OAuth/social login, MFA, per-seat billing, subdomain-per-org routing, public developer API.
+**Not yet:** Postgres RLS, real-time WebSocket updates, OAuth/social login, MFA, per-seat billing, plan-tier request rate limits, subdomain-per-org routing, public developer API.
 
-See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for layering, RLS, auth, and API contract decisions.
+See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for layering, tenant isolation, auth, and API contract decisions.
 
 ## Monorepo structure
 
@@ -51,14 +51,15 @@ pnpm install
 pnpm docker:up    # Postgres, Redis, MinIO, Prometheus, Grafana, Tempo
 
 # After apps exist:
-# cp .env.example apps/api/.env
+# cp apps/api/src/config/envs/.env.sample apps/api/src/config/envs/.env.development
+# For e2e: copy the same sample to .env.test and set NODE_ENV=test
 
 pnpm dev          # build shared + run all apps
 pnpm dev:api      # http://localhost:8090
 pnpm dev:web      # http://localhost:5173
 
 # Grafana (local): http://localhost:3001  (admin / admin)
-# Production: Grafana Cloud — see OBSERVABILITY.md
+# Production: Grafana Cloud (OTLP + Prometheus remote_write)
 ```
 
 ## Scripts
@@ -76,6 +77,8 @@ pnpm dev:web      # http://localhost:5173
 | `pnpm docker:up`   | Start Postgres, Redis, MinIO, Prometheus, Grafana, Tempo |
 | `pnpm docker:down` | Stop containers                                          |
 
+CI runs on pull requests and pushes to `main` (`.github/workflows/ci.yml`): lint, typecheck, unit tests, build, and API e2e against Compose Postgres/Redis/MinIO.
+
 ## Stack
 
-NestJS · Prisma · PostgreSQL (RLS) · BullMQ · Redis · Stripe · Vite · React · TanStack Query · OpenTelemetry · Prometheus/Grafana
+NestJS · Prisma · PostgreSQL · BullMQ · Redis · Stripe · Vite · React · TanStack Query · OpenTelemetry · Prometheus/Grafana

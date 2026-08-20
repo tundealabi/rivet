@@ -162,16 +162,16 @@ Create org after signup is `POST /organizations` `{ name }` — JWT, no org guar
 
 Short-lived **access JWT** (Bearer, ~15 min) + long-lived **refresh token** (`httpOnly` cookie, ~7 days). Full rationale: [ADR-0001](./adr/0001-dual-token-auth-with-httponly-refresh-cookie.md).
 
-| Token      | Storage               | Notes                                                                                                      |
-| ---------- | --------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Access JWT | Client (localStorage) | Claims: `sub` (user), `sid` (session). Sent as `Authorization: Bearer`.                                    |
-| Refresh    | `httpOnly` cookie     | Opaque token; hash in `refresh_tokens`; rotated on refresh; revoked on logout. **Never returned in JSON.** |
+| Token      | Storage               | Notes                                                                                                                           |
+| ---------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Access JWT | Client (localStorage) | Claims: `sub` (user), `sid` (session). Sent as `Authorization: Bearer`. Wire schemas document `accessToken` only.               |
+| Refresh    | `httpOnly` cookie     | Opaque token; hash in `refresh_tokens`; rotated on refresh; revoked on logout. `POST /auth/refresh` and logout read the cookie. |
 
 **Deployment:** Web (Vercel) and API (Render) are cross-origin. Refresh cookie uses `SameSite=None; Secure` in production. CORS allows credentialed requests from allowlisted frontend origins.
 
 **Org context:** Tenant-scoped routes require the **`x-org-id` header**. The API validates the authenticated user belongs to that org (membership check) before tenant logic runs. Org switch updates client state and subsequent headers — no new access token.
 
-**Client contract (target):** Login/refresh/logout use `fetch` with `credentials: 'include'`. Access token in localStorage; refresh token never in JS.
+**Client contract (target):** Login/refresh/logout use `fetch` with `credentials: 'include'`. Access token in localStorage; refresh token cookie-only (never in JS). Today login/refresh service results may still include `refreshToken`, and the web app stores it in localStorage — migrate to the cookie path.
 
 **Not in v1:** OAuth, MFA, session admin UI, BFF for token storage.
 
@@ -179,20 +179,19 @@ Short-lived **access JWT** (Bearer, ~15 min) + long-lived **refresh token** (`ht
 
 ## Errors
 
-Single `DomainError` class with `kind` (`NOT_FOUND` | `RULE_VIOLATION` | `CONFLICT`) and machine-readable `code`. Domain layers throw; a global exception filter maps to HTTP status and the response envelope. Stripe webhooks catch `DomainError` explicitly and return `200` where retries would be harmful.
+Single `DomainError` class with `kind` (`NOT_FOUND` | `RULE_VIOLATION` | `CONFLICT` | `FORBIDDEN` | `INVALID_CREDENTIALS` | `TOO_MANY_REQUESTS`) and machine-readable `code`. Domain layers throw; a global exception filter maps to HTTP status and the response envelope. Stripe webhooks catch `DomainError` explicitly and return `200` where retries would be harmful.
 
 ---
 
 ## API contract (shared package)
 
-| Shape                          | Location                                                                          |
-| ------------------------------ | --------------------------------------------------------------------------------- |
-| **Wire type** (`IssueWire`, …) | `@rivet/shared` - JSON inside `data`                                              |
-| **Entity**                     | `api/<feature>/entities/` - `implements IssueWire` + `@ApiProperty()` for Swagger |
-| **DTO**                        | `api/<feature>/dto/` - `class-validator` on input                                 |
-| **Domain type**                | `modules/<name>/types/` - internal only                                           |
+| Shape                          | Location                                                                                            |
+| ------------------------------ | --------------------------------------------------------------------------------------------------- |
+| **Wire type** (`IssueWire`, …) | `@rivet/shared` — Zod schemas / inferred types for JSON inside `data`                               |
+| **DTO**                        | `api/<feature>/dto/` — `nestjs-zod` `createZodDto` wrapping the shared schemas (request + response) |
+| **Domain type**                | `modules/<name>/types/` — internal only                                                             |
 
-Web imports wire types from shared; UI-only view models stay in `apps/web`.
+Web imports wire types from shared; UI-only view models stay in `apps/web`. Swagger is driven from the Nest DTOs / decorators, not a separate `entities/` layer per feature.
 
 ### Response envelope
 
@@ -267,7 +266,7 @@ Do not hold a DB transaction across enqueue or file I/O.
 
 ## Billing
 
-Subscribe-once Stripe Checkout for **PRO monthly**. The signed webhook is the only writer of `planTier` — the Checkout success URL is not trusted. TEAM is a fixture/unlimited tier, not a Checkout SKU. Portal, cancel, upgrade, and billing-period quota are deferred ([`apps/api/BILLING.md`](../apps/api/BILLING.md)).
+Subscribe-once Stripe Checkout for **PRO monthly**. The signed webhook is the only writer of `planTier` — the Checkout success URL is not trusted. TEAM is a fixture/unlimited tier, not a Checkout SKU. Portal, cancel, upgrade, and billing-period quota are deferred.
 
 `GET /billing` and `POST /billing/checkout` are **OWNER-only** (`@RequireOrgRole(OWNER)`). Checkout is refused unless `planTier === FREE` (`409` / `BILLING_ALREADY_SUBSCRIBED`). `GET /billing` returns `{ planTier }` only — no Stripe ids on the wire.
 
@@ -324,8 +323,6 @@ Local Compose adds Prometheus (scrapes `host.docker.internal:8090/metrics`), Tem
 - export failures — `increase(export_jobs_total{status="failed"}[5m]) > 0`
 - webhook errors — `increase(stripe_webhooks_total{outcome="error"}[5m]) > 0` (`bad_signature` is noise, not this alert)
 - quota exhaustion — `increase(quota_rejections_total[5m]) > 0` (product signal; severity low)
-
-Phased plan, production Grafana Cloud runbook, and how to force a firing alert: [`OBSERVABILITY.md`](../OBSERVABILITY.md).
 
 **Verification:** `apps/api/test/app.e2e-spec.ts` (probes + `/metrics`).
 

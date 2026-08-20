@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: true
+  HUSKY: "0"
+  OTEL_SDK_DISABLED: "true"
+  OTEL_TRACES_EXPORTER: none
+  OTEL_METRICS_EXPORTER: none
+  OTEL_LOGS_EXPORTER: none
+
+jobs:
+  ci:
+    name: Lint, typecheck, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.12.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Start Postgres, Redis, MinIO
+        run: |
+          docker compose up -d postgres redis minio
+          for i in $(seq 1 60); do
+            if docker compose exec -T postgres pg_isready -U rivet -d rivet \
+              && docker compose exec -T redis redis-cli ping | grep -q PONG \
+              && curl -sf http://localhost:9000/minio/health/live; then
+              echo "dependencies ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "timed out waiting for dependencies"
+          docker compose ps
+          exit 1
+
+      - name: Init MinIO bucket
+        run: docker compose up --exit-code-from minio-init minio-init
+
+      - name: Write API test env
+        run: |
+          cp apps/api/src/config/envs/.env.sample \
+            apps/api/src/config/envs/.env.test
+          sed -i 's/^NODE_ENV=.*/NODE_ENV=test/' \
+            apps/api/src/config/envs/.env.test
+
+      - name: Prisma generate + migrate
+        working-directory: apps/api
+        env:
+          DATABASE_URL: postgresql://rivet:rivet@localhost:5432/rivet
+        run: |
+          pnpm exec prisma generate
+          pnpm exec prisma migrate deploy
+
+      - name: Build shared
+        run: pnpm --filter @rivet/shared build
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Unit tests
+        run: pnpm --filter @rivet/api test
+
+      - name: Build apps
+        run: pnpm --filter @rivet/api build && pnpm --filter @rivet/web build
+
+      - name: E2E tests
+        run: pnpm --filter @rivet/api test:e2e
