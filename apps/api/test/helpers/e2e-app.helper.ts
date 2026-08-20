@@ -20,7 +20,9 @@ export async function createE2eApp(options?: {
   }
 
   if (!options?.throttle) {
-    builder.overrideGuard(ThrottlerGuard).useValue({ canActivate: () => true });
+    builder
+      .overrideProvider(ThrottlerGuard)
+      .useValue({ canActivate: () => true });
   }
 
   const moduleFixture: TestingModule = await builder.compile();

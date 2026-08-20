@@ -60,9 +60,10 @@ import { OrgMemberModule } from "@/modules/org-member/org-member.module";
     TenantContextService,
     OrgMemberGuard,
     OrgRoleGuard,
+    ThrottlerGuard,
     {
       provide: APP_GUARD,
-      useClass: ThrottlerGuard,
+      useExisting: ThrottlerGuard,
     },
   ],
   exports: [
