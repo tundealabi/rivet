@@ -9,5 +9,5 @@ export const TENANT_CONTEXT_KEYS = {
 export type TenantContextStore = {
   [TENANT_CONTEXT_KEYS.orgId]: string;
   [TENANT_CONTEXT_KEYS.orgRole]: OrganizationRole;
-  [TENANT_CONTEXT_KEYS.userId]: string;
+  [TENANT_CONTEXT_KEYS.userId]: string | undefined;
 };

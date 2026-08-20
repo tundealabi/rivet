@@ -3,7 +3,7 @@ import { z } from "zod";
 import { REGEX_PASSWORD } from "../../constants.js";
 
 export const RegisterAuthRequestSchema = z.object({
-  email: z.string().email(),
+  email: z.string().trim().toLowerCase().email(),
   firstName: z.string().min(1).max(30),
   lastName: z.string().min(1).max(30),
   orgName: z.string().min(3).max(50),

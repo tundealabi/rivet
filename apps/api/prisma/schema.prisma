@@ -64,8 +64,13 @@ model User {
 
   emailVerifications EmailVerification[]
   memberships        OrganizationMember[]
+  sentInvites        OrganizationInvite[] @relation("OrganizationInviteInviter")
   sessions           Session[]
   createdProjects    Project[]            @relation("ProjectCreator")
+  assignedIssues     Issue[]              @relation("IssueAssignee")
+  issueActivities    IssueActivity[]      @relation("IssueActivityActor")
+  authoredComments   IssueComment[]       @relation("IssueCommentAuthor")
+  requestedExports   ExportJob[]          @relation("ExportJobRequester")
 
   @@map("users")
 }
@@ -91,15 +96,21 @@ model EmailVerification {
 }
 
 model Organization {
-  id        String   @id @default(uuid()) @db.Uuid
-  name      String
-  planTier  PlanTier @default(FREE) @map("plan_tier")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id                   String   @id @default(uuid()) @db.Uuid
+  name                 String
+  planTier             PlanTier @default(FREE) @map("plan_tier")
+  stripeCustomerId     String?  @unique @map("stripe_customer_id")
+  stripeSubscriptionId String?  @unique @map("stripe_subscription_id")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
 
-  members  OrganizationMember[]
-  projects Project[]
-  issues   Issue[]
+  members         OrganizationMember[]
+  invites         OrganizationInvite[]
+  projects        Project[]
+  issues          Issue[]
+  issueActivities IssueActivity[]
+  issueComments   IssueComment[]
+  exportJobs      ExportJob[]
 
   @@map("organizations")
 }
@@ -118,6 +129,31 @@ model OrganizationMember {
   @@map("organization_members")
 }
 
+model OrganizationInvite {
+  id         String           @id @default(uuid()) @db.Uuid
+  email      String
+  role       OrganizationRole
+  tokenHash  String           @unique @map("token_hash")
+  expiresAt  DateTime         @map("expires_at")
+  acceptedAt DateTime?        @map("accepted_at")
+  declinedAt DateTime?        @map("declined_at")
+  revokedAt  DateTime?        @map("revoked_at")
+  lastSentAt DateTime         @map("last_sent_at")
+
+  invitedById String? @map("invited_by_id") @db.Uuid
+  invitedBy   User?   @relation("OrganizationInviteInviter", fields: [invitedById], references: [id], onDelete: SetNull)
+
+  organizationId String       @map("org_id") @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([organizationId, email])
+  @@index([email])
+  @@map("organization_invites")
+}
+
 model Project {
   id              String @id @default(uuid()) @db.Uuid
   description     String
@@ -130,10 +166,12 @@ model Project {
   organizationId String       @map("org_id") @db.Uuid
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  issues Issue[]
+  issues     Issue[]
+  exportJobs ExportJob[]
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  archivedAt DateTime? @map("archived_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
 
   @@unique([organizationId, key])
   @@unique([organizationId, name])
@@ -148,6 +186,9 @@ model Issue {
   priority    IssuePriority @default(MEDIUM)
   status      IssueStatus   @default(TODO)
 
+  assigneeId String? @map("assignee_id") @db.Uuid
+  assignee   User?   @relation("IssueAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+
   projectId      String       @map("project_id") @db.Uuid
   project        Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
   organizationId String       @map("org_id") @db.Uuid
@@ -156,9 +197,103 @@ model Issue {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  activities IssueActivity[]
+  comments   IssueComment[]
+
   @@unique([projectId, number])
   @@index([organizationId])
+  @@index([assigneeId])
+  @@index([projectId, assigneeId])
   @@map("issues")
+}
+
+enum IssueActivityField {
+  ASSIGNEE
+  DESCRIPTION
+  PRIORITY
+  STATUS
+  TITLE
+}
+
+model IssueActivity {
+  id        String             @id @default(uuid()) @db.Uuid
+  field     IssueActivityField
+  fromValue String?            @map("from_value")
+  toValue   String?            @map("to_value")
+
+  actorId String? @map("actor_id") @db.Uuid
+  actor   User?   @relation("IssueActivityActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  issueId String @map("issue_id") @db.Uuid
+  issue   Issue  @relation(fields: [issueId], references: [id], onDelete: Cascade)
+
+  organizationId String       @map("org_id") @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([issueId, createdAt])
+  @@index([organizationId])
+  @@map("issue_activities")
+}
+
+model IssueComment {
+  id   String @id @default(uuid()) @db.Uuid
+  body String
+
+  authorId String? @map("author_id") @db.Uuid
+  author   User?   @relation("IssueCommentAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+
+  issueId String @map("issue_id") @db.Uuid
+  issue   Issue  @relation(fields: [issueId], references: [id], onDelete: Cascade)
+
+  organizationId String       @map("org_id") @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([issueId, createdAt])
+  @@index([organizationId])
+  @@map("issue_comments")
+}
+
+enum ExportJobStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+model ExportJob {
+  id     String          @id @default(uuid()) @db.Uuid
+  status ExportJobStatus @default(QUEUED)
+
+  projectId        String         @map("project_id") @db.Uuid
+  filterStatus     IssueStatus?   @map("filter_status")
+  filterPriority   IssuePriority? @map("filter_priority")
+  filterAssigneeId String?        @map("filter_assignee_id") @db.Uuid
+  filterUnassigned Boolean        @default(false) @map("filter_unassigned")
+
+  objectKey String? @map("object_key")
+  error     String?
+
+  idempotencyKey String @map("idempotency_key")
+
+  requestedById  String       @map("requested_by_id") @db.Uuid
+  requestedBy    User         @relation("ExportJobRequester", fields: [requestedById], references: [id], onDelete: Cascade)
+  organizationId String       @map("org_id") @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project        Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  expiresAt DateTime? @map("expires_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  @@unique([organizationId, requestedById, idempotencyKey])
+  @@index([organizationId, createdAt])
+  @@index([organizationId, requestedById, createdAt])
+  @@map("export_jobs")
 }
 
 model RefreshToken {
@@ -194,6 +329,14 @@ model Session {
   refreshTokens RefreshToken[]
 
   @@map("sessions")
+}
+
+model StripeEvent {
+  id        String   @id
+  type      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("stripe_events")
 }
 
 // model ProjectMember {

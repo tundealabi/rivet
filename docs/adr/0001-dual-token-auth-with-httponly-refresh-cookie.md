@@ -65,8 +65,6 @@ The refresh token is **not** exposed to JS (`httpOnly`), so XSS cannot exfiltrat
 | Session cookie only (no JWT)        | Poor fit for separate API + SPA; harder Bearer contract for future clients |
 | Org/role claims in access JWT       | Couples authentication to tenant context; see tenant isolation docs        |
 | BFF holding both tokens server-side | Stronger XSS posture but adds infra; deferred                              |
-| `SameSite=Strict` in production     | Breaks credentialed refresh from Vercel → Render (cross-site fetch)        |
-| OAuth / social login                | Out of scope for v1                                                        |
 
 ## Consequences
 

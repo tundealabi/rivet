@@ -2,8 +2,10 @@ import { Injectable } from "@nestjs/common";
 
 import { DatabaseService } from "@/database/database.service";
 import { DbOptions } from "@/database/database.types";
+import { Prisma } from "@/generated/prisma/client";
 import {
   OrganizationMemberCreateArgs,
+  OrganizationMemberFindFirstArgs,
   OrganizationMemberFindManyArgs,
   OrganizationMemberFindUniqueArgs,
 } from "@/generated/prisma/models";
@@ -20,12 +22,28 @@ export class OrgMemberRepository {
     return client.organizationMember.create(args);
   }
 
+  async count(
+    args: { where: Prisma.OrganizationMemberWhereInput },
+    dbOptions?: DbOptions
+  ) {
+    const client = this.databaseService.resolveClient(dbOptions);
+    return client.organizationMember.count(args);
+  }
+
   async findUnique<T extends OrganizationMemberFindUniqueArgs>(
     args: T,
     dbOptions?: DbOptions
   ) {
     const client = this.databaseService.resolveClient(dbOptions);
     return client.organizationMember.findUnique(args);
+  }
+
+  async findFirst<T extends OrganizationMemberFindFirstArgs>(
+    args: T,
+    dbOptions?: DbOptions
+  ) {
+    const client = this.databaseService.resolveClient(dbOptions);
+    return client.organizationMember.findFirst(args);
   }
 
   async findMany<T extends OrganizationMemberFindManyArgs>(

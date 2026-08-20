@@ -1,0 +1,190 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: rivet-api
+    folder: Rivet
+    interval: 10s
+    rules:
+      - uid: rivet-export-failures
+        title: Export job failures
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: sum(increase(export_jobs_total{status="failed"}[5m])) or vector(0)
+              hide: false
+              instant: true
+              intervalMs: 1000
+              legendFormat: __auto
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: []
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                name: Expression
+                type: __expr__
+                uid: __expr__
+              expression: A
+              hide: false
+              refId: B
+              type: threshold
+        dashboardUid: rivet-api
+        panelId: 4
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        annotations:
+          __dashboardUid__: rivet-api
+          __panelId__: "4"
+          description: A CSV export worker failed in the last 5 minutes. See export_jobs_total{status="failed"} and the Export failures panel.
+          summary: Export jobs failed
+        labels:
+          severity: warning
+          service: rivet-api
+        isPaused: false
+
+      - uid: rivet-webhook-errors
+        title: Stripe webhook errors
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: sum(increase(stripe_webhooks_total{outcome="error"}[5m])) or vector(0)
+              hide: false
+              instant: true
+              intervalMs: 1000
+              legendFormat: __auto
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: []
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                name: Expression
+                type: __expr__
+                uid: __expr__
+              expression: A
+              hide: false
+              refId: B
+              type: threshold
+        dashboardUid: rivet-api
+        panelId: 11
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        annotations:
+          __dashboardUid__: rivet-api
+          __panelId__: "11"
+          description: A verified Stripe webhook failed while applying a plan update. Bad signatures are not this alert (they increment outcome=bad_signature).
+          summary: Stripe webhook handler errors
+        labels:
+          severity: warning
+          service: rivet-api
+        isPaused: false
+
+      - uid: rivet-quota-rejections
+        title: Quota rejections
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: sum(increase(quota_rejections_total[5m])) or vector(0)
+              hide: false
+              instant: true
+              intervalMs: 1000
+              legendFormat: __auto
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: []
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                name: Expression
+                type: __expr__
+                uid: __expr__
+              expression: A
+              hide: false
+              refId: B
+              type: threshold
+        dashboardUid: rivet-api
+        panelId: 12
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        annotations:
+          __dashboardUid__: rivet-api
+          __panelId__: "12"
+          description: A plan cap rejected a request (exports, projects, or members) in the last 5 minutes. Product signal; severity is low.
+          summary: Plan quota rejected a request
+        labels:
+          severity: info
+          service: rivet-api
+        isPaused: false

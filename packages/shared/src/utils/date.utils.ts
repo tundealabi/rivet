@@ -61,6 +61,13 @@ const isUtcCalendarDateStrictlyAfterToday = (value: unknown): boolean => {
 const parseUtcCalendarDateOnly = (value: unknown): Date | null => {
   return parseUtcDateOnly(value);
 };
+const utcCalendarMonthRange = (now: Date): { end: Date; start: Date } => {
+  const start = fromJSDate(now).startOf("month");
+  return {
+    start: toJSDate(start),
+    end: toJSDate(start.plus({ months: 1 })),
+  };
+};
 
 export const DATE_UTILS = {
   nowUtc,
@@ -85,4 +92,5 @@ export const DATE_UTILS = {
   isUtcCalendarDateStrictlyBeforeToday,
   isUtcCalendarDateStrictlyAfterToday,
   parseUtcCalendarDateOnly,
+  utcCalendarMonthRange,
 };

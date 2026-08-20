@@ -16,6 +16,8 @@ import { Request } from "express";
 import { Observable } from "rxjs";
 import { map } from "rxjs/operators";
 
+import { isUnprefixedProbePath } from "@/common/constants";
+import { SKIP_API_ENVELOPE_KEY } from "@/common/decorators";
 import { isPaginatedResult } from "@/common/types";
 
 function isEnvelopedResponse(
@@ -39,6 +41,17 @@ export class ApiResponseInterceptor implements NestInterceptor {
   constructor(private readonly reflector: Reflector) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
+    const request = context.switchToHttp().getRequest<Request>();
+    const skipEnvelope =
+      this.reflector.getAllAndOverride<boolean>(SKIP_API_ENVELOPE_KEY, [
+        context.getHandler(),
+        context.getClass(),
+      ]) === true || isUnprefixedProbePath(request.path);
+
+    if (skipEnvelope) {
+      return next.handle();
+    }
+
     const httpStatus =
       this.reflector.get<HttpStatus>("httpCode", context.getHandler()) ??
       HttpStatus.OK;
@@ -46,8 +59,6 @@ export class ApiResponseInterceptor implements NestInterceptor {
     if (httpStatus === HttpStatus.NO_CONTENT) {
       return next.handle();
     }
-
-    const request = context.switchToHttp().getRequest<Request>();
 
     return next.handle().pipe(
       map((body: unknown) => {

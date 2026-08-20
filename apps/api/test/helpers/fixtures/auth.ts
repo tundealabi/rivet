@@ -1,11 +1,15 @@
 import type { INestApplication } from "@nestjs/common";
 import type {
+  ApiPaginatedSuccessResponseWire,
+  ApiSuccessResponseWire,
+  OrganizationMemberResponseWire,
   SignInAuthResponseWire,
   UserOrganizationResponseWire,
 } from "@rivet/shared/api";
-import type { ApiSuccessResponseWire } from "@rivet/shared/api";
 import request from "supertest";
 import type { App } from "supertest/types";
+
+import { AUTH_CONSTANTS } from "@/modules/auth/auth.constants";
 
 import { API_PREFIX, TEST_PASSWORD } from "../constants";
 
@@ -13,6 +17,7 @@ export type RegisteredUser = {
   accessToken: string;
   email: string;
   orgId: string;
+  userId: string;
 };
 
 function uniqueEmail(label: string): string {
@@ -63,5 +68,19 @@ export async function registerLoginAndGetOrg(
     throw new Error(`Expected org for registered user ${email}`);
   }
 
-  return { accessToken, email, orgId };
+  const membersRes = await request(app.getHttpServer())
+    .get(`${API_PREFIX}/organizations/members`)
+    .set("Authorization", `Bearer ${accessToken}`)
+    .set(AUTH_CONSTANTS.ORG_ID_HEADER, orgId)
+    .expect(200);
+
+  const membersBody =
+    membersRes.body as ApiPaginatedSuccessResponseWire<OrganizationMemberResponseWire>;
+  const userId = membersBody.data.find((member) => member.email === email)?.id;
+
+  if (!userId) {
+    throw new Error(`Expected membership for registered user ${email}`);
+  }
+
+  return { accessToken, email, orgId, userId };
 }

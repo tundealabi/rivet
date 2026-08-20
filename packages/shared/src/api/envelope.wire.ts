@@ -7,6 +7,7 @@ export interface ApiErrorFieldWire {
 export interface ApiGeneralErrorWire {
   code: string;
   message: string;
+  details?: unknown;
 }
 
 export interface ApiValidationErrorWire {

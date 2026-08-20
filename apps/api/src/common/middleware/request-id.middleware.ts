@@ -3,6 +3,8 @@ import { randomUUID } from "node:crypto";
 import { Injectable, NestMiddleware } from "@nestjs/common";
 import { NextFunction, Request, Response } from "express";
 
+import { Trace } from "@/observability";
+
 @Injectable()
 export class RequestIdMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction): void {
@@ -12,6 +14,6 @@ export class RequestIdMiddleware implements NestMiddleware {
 
     req.requestId = requestId;
     res.setHeader("x-request-id", requestId);
-    next();
+    Trace.runWithRequestId(requestId, () => next());
   }
 }

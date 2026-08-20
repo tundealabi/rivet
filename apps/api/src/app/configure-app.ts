@@ -3,9 +3,10 @@ import { ConfigService } from "@nestjs/config";
 import { Reflector } from "@nestjs/core";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
+import { Logger as PinoNestLogger } from "nestjs-pino";
 import { ZodValidationPipe } from "nestjs-zod";
 
-import { ENV_KEYS } from "@/common/constants";
+import { ENV_KEYS, UNPREFIXED_PROBE_ROUTES } from "@/common/constants";
 import { ApiExceptionFilter } from "@/common/filters";
 import {
   ApiResponseInterceptor,
@@ -13,10 +14,13 @@ import {
 } from "@/common/interceptors";
 
 export function configureApp(app: INestApplication): void {
+  app.useLogger(app.get(PinoNestLogger));
+
   const configService = app.get(ConfigService);
 
   app.setGlobalPrefix(
-    configService.getOrThrow<string>(ENV_KEYS.APP_GLOBAL_PREFIX)
+    configService.getOrThrow<string>(ENV_KEYS.APP_GLOBAL_PREFIX),
+    { exclude: [...UNPREFIXED_PROBE_ROUTES] }
   );
 
   app.enableCors({

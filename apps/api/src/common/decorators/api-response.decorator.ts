@@ -1,5 +1,6 @@
 import { applyDecorators, HttpCode, HttpStatus, Type } from "@nestjs/common";
 import {
+  ApiAcceptedResponse,
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiConflictResponse,
@@ -190,7 +191,11 @@ export const ApiEnvelopeResponse = <TModel extends Type<unknown>>(
   options: ApiResponseOptions & {
     auth?: ApiResponseAuth;
     description: string;
-    httpStatus: HttpStatus.CREATED | HttpStatus.OK | HttpStatus.NO_CONTENT;
+    httpStatus:
+      | HttpStatus.ACCEPTED
+      | HttpStatus.CREATED
+      | HttpStatus.OK
+      | HttpStatus.NO_CONTENT;
     isArray?: boolean;
     summary: string;
     errorResponses?: ErrorResponse[];
@@ -238,6 +243,15 @@ export const ApiEnvelopeResponse = <TModel extends Type<unknown>>(
   }
 
   switch (httpStatus) {
+    case HttpStatus.ACCEPTED:
+      decorators.push(
+        ApiAcceptedResponse({
+          ...rest,
+          schema: buildSuccessResponseSchema(model),
+        }),
+        HttpCode(HttpStatus.ACCEPTED)
+      );
+      break;
     case HttpStatus.CREATED:
       decorators.push(
         ApiCreatedResponse({
