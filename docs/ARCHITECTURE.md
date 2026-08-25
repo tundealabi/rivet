@@ -82,7 +82,7 @@ Three application layers (Postgres RLS deferred):
 
 1. **HTTP guard:** `OrgMemberGuard` on tenant-scoped controllers (after JWT auth). Validates `x-org-id`, checks org membership, sets CLS (`orgId`, `userId`, `orgRole`).
 2. **Request context:** `TenantContextService` reads CLS in `api/` services — avoids threading org through every method signature.
-3. **Data scoping:** Prisma Client extension on allowlisted models (`Project`, …) merges `organizationId` from CLS into reads/writes. Throws if tenant context is missing.
+3. **Data scoping:** Prisma Client extension on allowlisted models (see `apps/api/src/database/tenant-scoped.models.ts`) merges `organizationId` from CLS into reads/writes. Throws if tenant context is missing.
 
 ```
 HTTP / job / webhook entry
@@ -244,21 +244,23 @@ Create is `MEMBER+`. List is any org member (including viewer). Edit/delete: `ME
 
 Full rationale: [ADR-0004](./adr/0004-async-issue-csv-export.md).
 
-Always-async: `POST /exports` returns **202** immediately; the client polls `GET /exports/:id`. The API never streams the CSV. When the job has succeeded and the object is unexpired, `downloadUrl` is a short-lived signed GET (S3 API: MinIO locally, R2 in production).
+Always-async: `POST /exports` returns **202** immediately; the client polls `GET /exports/:id`. The API never streams the CSV. When the job has succeeded and the object is unexpired, `downloadUrl` is a short-lived signed GET (S3 API: MinIO locally, Backblaze B2 in production).
 
 Export is multi-domain. `modules/issue` is a row source only.
 
-| Piece                | Where                           |
-| -------------------- | ------------------------------- |
-| HTTP, quota, enqueue | `api/exports`                   |
-| Row source           | `modules/issue` cursor iterator |
-| Upload + signed URL  | storage adapter used by worker  |
+| Piece                          | Where                                       |
+| ------------------------------ | ------------------------------------------- |
+| HTTP, quota, enqueue, sign GET | `api/export`                                |
+| Row source                     | `modules/issue` cursor iterator             |
+| Upload                         | worker via storage adapter (`jobs/exports`) |
 
-Quota is **org-wide**, charged **on insert** (`PLAN_LIMITS.exportsPerMonth`, UTC calendar month). `Idempotency-Key` is required. Download is requester-only. BullMQ workers set CLS before module/DB work — same path as other async entry points.
+Quota is **org-wide**, charged **on insert** (`PLAN_LIMITS.exportsPerMonth`, UTC calendar month). `Idempotency-Key` is required; unique per org + requester + key. Replay does not insert or re-charge; filters are not part of the key (first snapshot wins). Terminal `FAILED` is final for that job (no retry endpoint, no refund); a new export needs a new key and consumes another slot. The worker only writes `FAILED` on the last BullMQ attempt or an unrecoverable/cap error — mid-retry failures stay `RUNNING`. Download is requester-only. BullMQ workers set CLS before module/DB work — same path as other async entry points.
 
-GET omits `downloadUrl` after `expiresAt` (24h). Deleting expired objects from the bucket is deferred.
+GET omits `downloadUrl` after `expiresAt` (24h). Production object cleanup is B2 bucket lifecycle (ops); no in-app sweeper. `ExportJob` rows are retained. Archived projects may be exported (historical snapshot); archive only blocks mutating issue/project writes.
 
 Do not hold a DB transaction across enqueue or file I/O.
+
+Web poll + download UI lives in `apps/web` (separate from this API surface); no export routes are wired there yet.
 
 **Verification:** `apps/api/test/export.e2e-spec.ts` — cross-org and non-requester GET 404; missing key 400; idempotent POST; quota 429; viewer cannot create; worker CSV quoting and formula prefix.
 

@@ -111,28 +111,34 @@ export class ExportJobProcessor extends WorkerHost {
         rowCount,
       });
     } catch (error) {
-      Metrics.recordExportJob("failed");
+      const message = errorMessage(error);
+      const terminal = error instanceof ExportCapError || isFinalAttempt(job);
+
       this.logger.error({
         err: toLogError(error),
         exportJobId,
         msg: LOG_MSG.exportFailed,
         orgId: organizationId,
+        terminal,
       });
 
-      const message = errorMessage(error);
+      // Pollers treat FAILED as terminal. Only write it when BullMQ will not retry.
+      if (terminal) {
+        Metrics.recordExportJob("failed");
 
-      try {
-        await this.exportService.update(exportJobId, {
-          error: message,
-          status: ExportJobStatus.FAILED,
-        });
-      } catch (updateError) {
-        this.logger.error({
-          err: toLogError(updateError),
-          exportJobId,
-          msg: LOG_MSG.exportStatusUpdateFailed,
-          orgId: organizationId,
-        });
+        try {
+          await this.exportService.update(exportJobId, {
+            error: message,
+            status: ExportJobStatus.FAILED,
+          });
+        } catch (updateError) {
+          this.logger.error({
+            err: toLogError(updateError),
+            exportJobId,
+            msg: LOG_MSG.exportStatusUpdateFailed,
+            orgId: organizationId,
+          });
+        }
       }
 
       if (error instanceof ExportCapError) {
@@ -189,6 +195,12 @@ function issueFiltersFromExportJob(
     projectId: job.projectId,
     status: job.filterStatus ?? undefined,
   };
+}
+
+function isFinalAttempt(job: Job<ExportJobPayload>): boolean {
+  const maxAttempts = job.opts?.attempts ?? 1;
+  const attemptsMade = job.attemptsMade ?? 0;
+  return attemptsMade + 1 >= maxAttempts;
 }
 
 function errorMessage(error: unknown): string {

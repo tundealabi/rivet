@@ -63,7 +63,6 @@ The refresh token is **not** exposed to JS (`httpOnly`), so XSS cannot exfiltrat
 | ----------------------------------- | -------------------------------------------------------------------------- |
 | Both tokens in localStorage         | Refresh token stealable via XSS → long-lived compromise                    |
 | Session cookie only (no JWT)        | Poor fit for separate API + SPA; harder Bearer contract for future clients |
-| Org/role claims in access JWT       | Couples authentication to tenant context; see tenant isolation docs        |
 | BFF holding both tokens server-side | Stronger XSS posture but adds infra; deferred                              |
 
 ## Consequences
