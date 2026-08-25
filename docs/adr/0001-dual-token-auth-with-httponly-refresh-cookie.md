@@ -48,7 +48,7 @@ Cross-site deployment requires:
 - `SameSite=None`
 - `path: /api/v1/auth` (limit cookie to auth routes)
 
-Local development uses `SameSite=Lax` and `Secure=false` (localhost ports are same-site).
+Local development uses `SameSite=Lax` and `Secure=false` (localhost ports are same-site). If API and web later share a registrable domain, consider `SameSite=Strict` then.
 
 ### CORS
 
@@ -86,7 +86,6 @@ For clients that use the cookie-only refresh path, the refresh token is **not** 
 ### Follow-ups
 
 - [ ] Web client (separate from API): `credentials: 'include'` on auth routes; access token in localStorage only; never store refresh in JS
-- [ ] Revisit `SameSite=Strict` if API and web move to the same registrable domain (e.g. `app.rivet.com` / `api.rivet.com`)
 
 ## References
 

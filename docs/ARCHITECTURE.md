@@ -80,16 +80,15 @@ Full rationale: [ADR-0002](./adr/0002-application-layer-tenant-isolation.md).
 
 Three application layers (Postgres RLS deferred):
 
-1. **HTTP guard:** `OrgMemberGuard` on tenant-scoped controllers (after JWT auth). Validates `x-org-id`, checks org membership, sets CLS (`orgId`, `userId`, `orgRole`).
+1. **HTTP guard:** `OrgMemberGuard` is **opt-in** on routes that need an active org via `x-org-id` (after JWT auth). Missing/non-UUID header → **400** (`ValidationError`); valid UUID but not a member → **403**; otherwise sets CLS (`orgId`, `userId`, `orgRole`). Source of truth: `@UseGuards(OrgMemberGuard)` on controllers under `apps/api/src/api/` — not a docs skip list.
 2. **Request context:** `TenantContextService` reads CLS in `api/` services — avoids threading org through every method signature.
 3. **Data scoping:** Prisma Client extension on allowlisted models (see `apps/api/src/database/tenant-scoped.models.ts`) merges `organizationId` from CLS into reads/writes. Throws if tenant context is missing.
 
 ```
 HTTP / job / webhook entry
    │
-   ├─ HTTP: OrgMemberGuard → CLS
-   ├─ Job: cls.run(() => cls.set('orgId', …))
-   └─ Webhook: resolve org from Stripe customer → cls.run(…)
+   ├─ HTTP: OrgMemberGuard → CLS (orgId, userId, orgRole)
+   ├─ Job / webhook: TenantContextService.runWithTenantContext({ orgId, … }, fn)
    │
    ▼
 api/<feature>/service     (reads TenantContextService where needed)
@@ -98,11 +97,11 @@ api/<feature>/service     (reads TenantContextService where needed)
 modules/<feature>/service → repository → extended Prisma client
 ```
 
-**Bootstrap paths** (register + create org, auth) do not use `OrgMemberGuard` and do not touch tenant-scoped models until an org exists.
+**Routes without `OrgMemberGuard`** have no active `x-org-id` tenant (auth, org bootstrap/list, invitations, webhooks, probes, etc.). They must not touch tenant-scoped models unless an async entry point sets CLS another way.
 
-**Async entry points** (BullMQ, Stripe webhooks) must set CLS before module/DB work — same extension, no separate scoping logic.
+**Async entry points** (BullMQ, Stripe webhooks) must call `runWithTenantContext` before module/DB work — same Prisma extension; `orgId` required, other CLS keys only when the entry point supplies them (`tenant-context.service.ts`).
 
-**Verification:** `apps/api/test/tenant-isolation.e2e-spec.ts` — org B cannot read/update org A's project via HTTP; module queries without explicit `organizationId` still respect CLS org scope.
+**Verification:** `apps/api/test/tenant-isolation.e2e-spec.ts` — org B cannot read/update org A's project via HTTP; module queries without explicit `organizationId` still respect CLS org scope, including under `TenantContextService.runWithTenantContext` (job/webhook entry shape).
 
 **Future:** Postgres RLS when a concrete trigger appears (compliance, BI on prod DB, second service sharing Postgres).
 
@@ -110,11 +109,11 @@ modules/<feature>/service → repository → extended Prisma client
 
 ## Authorization (org roles)
 
-Roles are a total order (`VIEWER < MEMBER < ADMIN < OWNER`). `OrgMemberGuard` stores `orgRole` in CLS; `@RequireOrgRole(min)` + `OrgRoleGuard` reject below that rank with 403. Routes without the decorator stay any-member (reads). Role is not in the access JWT. No project-level roles.
+Roles are a total order (`VIEWER < MEMBER < ADMIN < OWNER`). `OrgMemberGuard` stores `orgRole` in CLS; `@RequireOrgRole(min)` + `OrgRoleGuard` reject below that rank with 403. **Default without the decorator is any org member** (including reads and writes). Use `@RequireOrgRole` wherever a higher floor is needed — not only on mutations (e.g. invite list is `ADMIN+`, billing is `OWNER`). Role is not in the access JWT. No project-level roles. Source of truth: `@RequireOrgRole` on handlers/controllers under `apps/api/src/api/`.
 
-Shipped mutating floors:
+Examples of shipped floors (not exhaustive):
 
-| Min role | Routes                                                                    |
+| Min role | Examples                                                                  |
 | -------- | ------------------------------------------------------------------------- |
 | MEMBER+  | Create project, create/update/delete issue, create export, create comment |
 | ADMIN+   | Update / archive / unarchive / delete project; org-side invites           |
@@ -169,7 +168,7 @@ Short-lived **access JWT** (Bearer, ~15 min) + long-lived **refresh token** (`ht
 
 **Deployment:** Web (Vercel) and API (Render) are cross-origin. Refresh cookie uses `SameSite=None; Secure` in production. CORS allows credentialed requests from allowlisted frontend origins.
 
-**Org context:** Tenant-scoped routes require the **`x-org-id` header**. The API validates the authenticated user belongs to that org (membership check) before tenant logic runs. Org switch updates client state and subsequent headers — no new access token.
+**Org context:** Tenant-scoped routes require the **`x-org-id` header**. Missing/non-UUID → **400**; authenticated user not a member of that org → **403**. Org switch updates client state and subsequent headers — no new access token.
 
 **Guards:** `AuthUserJwtGuard` is a global `APP_GUARD`. Opt out with `@ApiPublic()` (auth routes, invitation preview, health/ready, metrics, Stripe webhooks). Forgetting `@ApiPublic()` leaves a route authenticated by default. Org membership/role guards stay opt-in on tenant controllers. Access JWT validation is signature/claims only — logout does not kill in-flight access tokens until TTL; instant revoke would need a `sid` denylist (e.g. Redis), not a session row read on every request.
 
@@ -256,7 +255,7 @@ Export is multi-domain. `modules/issue` is a row source only.
 | Row source                     | `modules/issue` cursor iterator             |
 | Upload                         | worker via storage adapter (`jobs/exports`) |
 
-Quota is **org-wide**, charged **on insert** (`PLAN_LIMITS.exportsPerMonth`, UTC calendar month). `Idempotency-Key` is required; unique per org + requester + key. Replay does not insert or re-charge; filters are not part of the key (first snapshot wins). Terminal `FAILED` is final for that job (no retry endpoint, no refund); a new export needs a new key and consumes another slot. The worker only writes `FAILED` on the last BullMQ attempt or an unrecoverable/cap error — mid-retry failures stay `RUNNING`. Download is requester-only. BullMQ workers set CLS before module/DB work — same path as other async entry points.
+Quota is **org-wide**, charged **on insert** (`PLAN_LIMITS.exportsPerMonth`, UTC calendar month). `Idempotency-Key` is required; unique per org + requester + key. Replay does not insert or re-charge; filters are not part of the key (first snapshot wins). Terminal `FAILED` is final for that job (no retry endpoint, no refund); a new export needs a new key and consumes another slot. The worker only writes `FAILED` on the last BullMQ attempt or an unrecoverable/cap error — mid-retry failures stay `RUNNING`. Download is requester-only. The export worker sets CLS with `{ orgId, userId }` (no `orgRole` — role checks stay on HTTP create).
 
 GET omits `downloadUrl` after `expiresAt` (24h). Production object cleanup is B2 bucket lifecycle (ops); no in-app sweeper. `ExportJob` rows are retained. Archived projects may be exported (historical snapshot); archive only blocks mutating issue/project writes.
 
@@ -285,6 +284,8 @@ runWithTenantContext({ orgId }, () =>
   $transaction: insert StripeEvent (id = event.id) + update planTier / subscription id
 )
 ```
+
+CLS does not scope those writes today (models off allowlist). The wrap is still intentional — same async entry rule as jobs, so a later tenant-model write in this path is already covered.
 
 Unknown customer, unhandled `type`, or non-PRO price → **200** (do not retry). Bad signature → **400**. Duplicate `event.id` → **200**, no second plan update. `customer.subscription.deleted` sets `FREE` and clears `stripeSubscriptionId` (keeps `stripeCustomerId`). Export quota stays **UTC calendar month**.
 
