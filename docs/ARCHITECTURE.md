@@ -218,10 +218,14 @@ Every response uses the same top-level shape:
 Field-level (partial) updates by default. High-risk issue fields use conditional writes without extra version columns on `Issue`:
 
 - **`status` / `assigneeId`** — expected-value CAS (`expectedStatus`, `expectedAssigneeId`)
-- **`description`** — expected content hash (`descriptionHash` on read, `expectedDescriptionHash` on write; hash is derived, not stored)
-- **Other fields** (e.g. `title`, `priority`) — last-write-wins
+- **`description`** — expected content hash (`descriptionHash` on read, `expectedDescriptionHash` on write; unkeyed SHA-256 hex over exact UTF-8 via `HashService.fingerprint`, not stored)
+- **`title` / `priority`** — last-write-wins (only LWW fields on issue PATCH)
 
-Status changes also run an allowed **transition graph** check (rule violation, not conflict) - `ISSUE_STATUS_TRANSITIONS` / `isIssueStatusTransitionAllowed` in `@rivet/shared/enums`. Stale high-risk writes return `409` / `ISSUE_CONFLICT` with current server state for client resolution. Illegal transitions return `422` / `ISSUE_STATUS_TRANSITION`. Successful field writes append `IssueActivity` in the same transaction (feed / audit / conflict context).
+Status and assignee writes also run **domain rules** after CAS matches - status transition graph (`ISSUE_STATUS_TRANSITIONS` / `isIssueStatusTransitionAllowed` in `@rivet/shared/enums`; includes identity edges so same-status retries are not `422`) and assignee org-membership. Precedence: stale high-risk writes return `409` / `ISSUE_CONFLICT` **before** (and instead of) rule-violation `422`s (`ISSUE_STATUS_TRANSITION`, `ASSIGNEE_NOT_ORG_MEMBER`). The `409` body is `error.details.conflicts` for stale fields in this PATCH only (`status` / `assigneeId` / `description` + fresh hash; `IssueConflictDetailsSchema`) — no actor, timestamp, or full issue DTO; who/when is `GET /issues/:id/activity`. Successful field writes append `IssueActivity` in the same transaction (feed / audit). Create does not.
+
+Web conflict banner / merge UI lives in `apps/web` (separate from this API surface).
+
+**Verification:** `apps/api/test/issue-concurrency.e2e-spec.ts`.
 
 Full rationale: [ADR-0003](./adr/0003-issue-field-concurrency.md).
 
@@ -235,7 +239,7 @@ Create is `MEMBER+`. List is any org member (including viewer). Edit/delete: `ME
 
 **Verification:** `apps/api/test/issue-comments.e2e-spec.ts`, comment cases in `rbac.e2e-spec.ts` and `tenant-isolation.e2e-spec.ts`.
 
-`GET /issues/:id/activity` lists append-only field-change rows (cursor, newest first). Any org member can read. Delete issue is `MEMBER+` and is refused on archived projects (`409` / `PROJECT_ARCHIVED`). Delete project is `ADMIN+` and cascades issues, comments, activity, and export jobs.
+`GET /issues/:id/activity` lists append-only **field-change** rows from successful PATCH updates (cursor, newest first). Create does not insert activity; birth time is `Issue.createdAt`. Any org member can read. Delete issue is `MEMBER+` and is refused on archived projects (`409` / `PROJECT_ARCHIVED`). Delete project is `ADMIN+` and cascades issues, comments, activity, and export jobs.
 
 **Verification:** `apps/api/test/issue-activity.e2e-spec.ts`; delete cases in `rbac.e2e-spec.ts` and `tenant-isolation.e2e-spec.ts`.
 
