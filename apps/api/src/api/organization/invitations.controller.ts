@@ -7,12 +7,14 @@ import {
   ParseUUIDPipe,
   Post,
   Query,
-  UseGuards,
 } from "@nestjs/common";
 
-import { ApiEnvelopeResponse, ApiRequestUser } from "@/common/decorators";
+import {
+  ApiEnvelopeResponse,
+  ApiPublic,
+  ApiRequestUser,
+} from "@/common/decorators";
 import { AuthJwtUser } from "@/modules/auth/auth.entities";
-import { AuthUserJwtGuard } from "@/modules/auth/auth.guard";
 
 import {
   AcceptInvitationByTokenRequestDto,
@@ -29,7 +31,6 @@ export class InvitationsController {
   constructor(private readonly service: OrganizationService) {}
 
   @Get()
-  @UseGuards(AuthUserJwtGuard)
   @ApiEnvelopeResponse(UserInvitationResponseDto, {
     auth: "required",
     description:
@@ -51,6 +52,7 @@ export class InvitationsController {
     });
   }
 
+  @ApiPublic()
   @Get("preview")
   @ApiEnvelopeResponse(InvitationPreviewResponseDto, {
     auth: "public",
@@ -70,7 +72,6 @@ export class InvitationsController {
   }
 
   @Post("accept")
-  @UseGuards(AuthUserJwtGuard)
   @ApiEnvelopeResponse(AcceptInvitationResponseDto, {
     auth: "required",
     description:
@@ -107,7 +108,6 @@ export class InvitationsController {
   }
 
   @Post(":id/accept")
-  @UseGuards(AuthUserJwtGuard)
   @ApiEnvelopeResponse(AcceptInvitationResponseDto, {
     auth: "required",
     description:
@@ -144,7 +144,6 @@ export class InvitationsController {
   }
 
   @Post(":id/decline")
-  @UseGuards(AuthUserJwtGuard)
   @ApiEnvelopeResponse(null, {
     auth: "required",
     description:

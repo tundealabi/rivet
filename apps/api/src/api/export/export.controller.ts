@@ -19,13 +19,12 @@ import {
   RequireOrgRole,
 } from "@/common/decorators";
 import { OrgMemberGuard, OrgRoleGuard } from "@/common/guards";
-import { AuthUserJwtGuard } from "@/modules/auth/auth.guard";
 
 import { CreateExportRequestDto, ExportJobResponseDto } from "./dto";
 import { ExportService } from "./export.service";
 
 @Controller("exports")
-@UseGuards(AuthUserJwtGuard, OrgMemberGuard, OrgRoleGuard)
+@UseGuards(OrgMemberGuard, OrgRoleGuard)
 @ApiOrgIdHeader()
 export class ExportController {
   constructor(private readonly service: ExportService) {}

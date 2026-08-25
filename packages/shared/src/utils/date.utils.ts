@@ -1,4 +1,5 @@
-import { DateTime } from "luxon";
+import type { DurationLikeObject } from "luxon";
+import { DateTime, Duration } from "luxon";
 
 const nowUtc = () => DateTime.utc();
 const nowLocal = (zone = "Africa/Lagos") => DateTime.now().setZone(zone);
@@ -20,6 +21,9 @@ const isFuture = (dt: DateTime) => dt.toMillis() > nowUtc().toMillis();
 const isPast = (dt: DateTime) => dt.toMillis() < nowUtc().toMillis();
 const format = (dt: DateTime, format = "yyyy-MM-dd HH:mm") =>
   dt.toFormat(format);
+/** Duration length in ms, not an absolute epoch. */
+const durationToMillis = (values: DurationLikeObject) =>
+  Duration.fromObject(values).toMillis();
 
 const getUtcToday = () => nowUtc().startOf("day");
 const parseUtcDateOnly = (value: unknown): Date | null => {
@@ -87,6 +91,7 @@ export const DATE_UTILS = {
   isFuture,
   isPast,
   format,
+  durationToMillis,
   getUtcToday,
   parseUtcDateOnly,
   isUtcCalendarDateStrictlyBeforeToday,

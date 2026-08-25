@@ -16,12 +16,14 @@ We need persistent login without keeping long-lived secrets in JavaScript-access
 
 ## Decision
 
+This ADR defines the **API contract**. The NestJS API sets and reads the refresh `httpOnly` cookie, and wire schemas omit `refreshToken` from HTTP JSON. Migrating the web SPA onto that contract is tracked separately (see Follow-ups); until then a client may still hold refresh in JS and the XSS claim below applies only to cookie-compliant clients.
+
 ### Token model
 
-| Token             | Lifetime                        | Client                                                  | Server                                                        |
-| ----------------- | ------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------- |
-| **Access JWT**    | Short (~15 min, env-configured) | Response body → client storage (localStorage)           | Verified via Bearer header + shared secret                    |
-| **Refresh token** | Long (~7 days, env-configured)  | `httpOnly` **cookie only** — never in JSON, never in JS | Opaque token; SHA hash in `refresh_tokens`; tied to `Session` |
+| Token             | Lifetime                        | Client (target)                                         | Server                                                                                    |
+| ----------------- | ------------------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| **Access JWT**    | Short (~15 min, env-configured) | Response body → client storage (localStorage)           | Verified via Bearer header + shared secret                                                |
+| **Refresh token** | Long (~7 days, env-configured)  | `httpOnly` **cookie only** — never in JSON, never in JS | Opaque token; HMAC-SHA256 (`SECURITY_HMAC_PEPPER`) in `refresh_tokens`; tied to `Session` |
 
 Access JWT claims: `sub` (user id) and `sid` (session id) only. Tenant context (org, role) is handled outside this token — see `[ARCHITECTURE.md](../ARCHITECTURE.md)` tenant isolation.
 
@@ -30,9 +32,10 @@ Access JWT claims: `sub` (user id) and `sid` (session id) only. Tenant context (
 | Route                      | Auth mechanism                                                                                                  |
 | -------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | `POST /auth/login`         | Public. Returns access token in body; sets refresh cookie.                                                      |
+| `POST /auth/register`      | Public. Creates user + org; returns access token in body; sets refresh cookie (same as login).                  |
 | `POST /auth/refresh`       | Public. Reads refresh cookie; rotates refresh token; returns new access token in body; sets new refresh cookie. |
-| `POST /auth/logout`        | Refresh cookie. Revokes session; clears cookie.                                                                 |
-| All other protected routes | `Authorization: Bearer <access JWT>`                                                                            |
+| `POST /auth/logout`        | Refresh cookie. Revokes session and refresh token row; clears cookie.                                           |
+| All other protected routes | `Authorization: Bearer <access JWT>` (global `AuthUserJwtGuard`; `@ApiPublic()` to opt out)                     |
 
 Refresh token is **rotated** on every refresh. Reuse of a revoked refresh token revokes the entire session.
 
@@ -49,13 +52,13 @@ Local development uses `SameSite=Lax` and `Secure=false` (localhost ports are sa
 
 ### CORS
 
-API enables CORS with `credentials: true` and an explicit allowlist of frontend origins (Vercel URLs). Clients call login, refresh, and logout with `credentials: 'include'`.
+API enables CORS with `credentials: true` and an explicit origin allowlist from `APP_CORS_ORIGINS`. Cookie-compliant clients call login, refresh, and logout with `credentials: 'include'`.
 
 ### Accepted XSS tradeoff
 
 The access token lives in client-accessible storage (localStorage). XSS can steal it until expiry. **Short access TTL** is the primary mitigation. Browser-side encryption (e.g. secure-ls) is obfuscation only — it does not protect against XSS because the key lives in the same JS context.
 
-The refresh token is **not** exposed to JS (`httpOnly`), so XSS cannot exfiltrate long-lived session credentials.
+For clients that use the cookie-only refresh path, the refresh token is **not** exposed to JS (`httpOnly`), so XSS cannot exfiltrate long-lived session credentials. A client that still stores refresh in JS loses that property until it migrates.
 
 ## Alternatives considered
 
@@ -69,7 +72,7 @@ The refresh token is **not** exposed to JS (`httpOnly`), so XSS cannot exfiltrat
 
 ### Positive
 
-- Refresh token never readable by application JavaScript
+- API never returns refresh on the wire; cookie-compliant clients keep refresh out of JS
 - Token rotation and session revoke support logout and theft detection
 - Access JWT stays minimal and identity-focused
 
@@ -78,10 +81,11 @@ The refresh token is **not** exposed to JS (`httpOnly`), so XSS cannot exfiltrat
 - Access token remains XSS-exposed for its TTL if stored in localStorage
 - Cross-origin cookie setup is strict: CORS credentials, `SameSite=None`, `Secure`, explicit origins
 - Access JWT cannot be revoked instantly without a blocklist; session invalidation is enforced on refresh
+- Until the web app migrates, it may still store refresh in localStorage and ignore the cookie path
 
 ### Follow-ups
 
-- [ ] Implement web client: `credentials: 'include'` on auth routes; access token in localStorage only; never store refresh in JS
+- [ ] Web client (separate from API): `credentials: 'include'` on auth routes; access token in localStorage only; never store refresh in JS
 - [ ] Revisit `SameSite=Strict` if API and web move to the same registrable domain (e.g. `app.rivet.com` / `api.rivet.com`)
 
 ## References

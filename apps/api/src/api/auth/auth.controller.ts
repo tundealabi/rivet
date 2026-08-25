@@ -2,7 +2,7 @@ import { Body, Controller, HttpStatus, Post, Req, Res } from "@nestjs/common";
 import type { Request, Response } from "express";
 import { getClientIp } from "request-ip";
 
-import { ApiEnvelopeResponse, Cookies } from "@/common/decorators";
+import { ApiEnvelopeResponse, ApiPublic, Cookies } from "@/common/decorators";
 
 import { AUTH_REFRESH_TOKEN_COOKIE_NAME } from "./auth.constants";
 import { AuthService } from "./auth.service";
@@ -20,6 +20,7 @@ import {
   VerifyEmailResponseDto,
 } from "./dto";
 
+@ApiPublic()
 @Controller("auth")
 export class AuthController {
   constructor(private readonly service: AuthService) {}
@@ -141,10 +142,22 @@ export class AuthController {
     httpStatus: HttpStatus.CREATED,
     summary: "Register a new user and create an organization",
   })
-  register(
-    @Body() dto: RegisterAuthRequestDto
+  async register(
+    @Body() dto: RegisterAuthRequestDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response
   ): Promise<SignUpAuthResponseDto> {
-    return this.service.register(dto);
+    const result = await this.service.register({
+      ...dto,
+      ipAddress: getClientIp(req) || "",
+      userAgent: req.get("user-agent") || "",
+    });
+    res.cookie(
+      AUTH_REFRESH_TOKEN_COOKIE_NAME,
+      result.authTokens.refreshToken,
+      this.service.getCookieOptions()
+    );
+    return result;
   }
 
   // ------------------------------

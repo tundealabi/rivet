@@ -110,6 +110,7 @@ export class AuthService {
     );
     if (refreshToken) {
       await this.authService.revokeSession(refreshToken.sessionId);
+      await this.authService.revokeRefreshToken(refreshToken.id);
     }
   }
 
@@ -119,8 +120,6 @@ export class AuthService {
 
   async register(input: RegisterAuthInput) {
     const hashedPassword = await this.authService.hashPassword(input.password);
-    const code = this.authService.generateOtp();
-    const verification = this.buildEmailVerificationPayload(code);
 
     const user = await this.databaseService.client.$transaction(async (tx) => {
       const options = { tx };
@@ -130,14 +129,6 @@ export class AuthService {
           firstName: input.firstName,
           lastName: input.lastName,
           hashedPassword,
-        },
-        options
-      );
-      await this.emailVerificationService.create(
-        {
-          ...verification,
-          context: EmailVerificationContext.SIGN_UP,
-          userId: createdUser.id,
         },
         options
       );
@@ -159,9 +150,28 @@ export class AuthService {
       return createdUser;
     });
 
-    // TODO: Send email verification code
+    const session = await this.authService.createSession({
+      userId: user.id,
+      ipAddress: input.ipAddress,
+      userAgent: input.userAgent,
+    });
 
-    return user;
+    const accessToken = await this.authService.generateAccessToken({
+      sessionId: session.id,
+      userId: user.id,
+    });
+
+    const refreshToken = await this.authService.createRefreshToken({
+      sessionId: session.id,
+    });
+
+    return {
+      authTokens: {
+        accessToken,
+        refreshToken,
+      },
+      user,
+    };
   }
 
   // ------------------------------
@@ -383,14 +393,12 @@ export class AuthService {
 
   getCookieOptions() {
     const isProduction = process.env.NODE_ENV === NodeEnv.PRODUCTION;
+    const expiresInDays = this.configService.getOrThrow<number>(
+      ENV_KEYS.AUTH_USER_REFRESH_TOKEN_EXPIRES_IN_DAYS
+    );
     return {
       httpOnly: true,
-      maxAge: DATE_UTILS.addDays(
-        DATE_UTILS.nowUtc(),
-        this.configService.getOrThrow<number>(
-          ENV_KEYS.AUTH_USER_REFRESH_TOKEN_EXPIRES_IN_DAYS
-        )
-      ).toMillis(),
+      maxAge: DATE_UTILS.durationToMillis({ days: expiresInDays }),
       path: "/api/v1/auth",
       sameSite: isProduction ? ("none" as const) : ("lax" as const),
       secure: isProduction,

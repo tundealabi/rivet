@@ -171,6 +171,8 @@ Short-lived **access JWT** (Bearer, ~15 min) + long-lived **refresh token** (`ht
 
 **Org context:** Tenant-scoped routes require the **`x-org-id` header**. The API validates the authenticated user belongs to that org (membership check) before tenant logic runs. Org switch updates client state and subsequent headers — no new access token.
 
+**Guards:** `AuthUserJwtGuard` is a global `APP_GUARD`. Opt out with `@ApiPublic()` (auth routes, invitation preview, health/ready, metrics, Stripe webhooks). Forgetting `@ApiPublic()` leaves a route authenticated by default. Org membership/role guards stay opt-in on tenant controllers. Access JWT validation is signature/claims only — logout does not kill in-flight access tokens until TTL; instant revoke would need a `sid` denylist (e.g. Redis), not a session row read on every request.
+
 **Client contract (target):** Login/refresh/logout use `fetch` with `credentials: 'include'`. Access token in localStorage; refresh token cookie-only (never in JS). Today login/refresh service results may still include `refreshToken`, and the web app stores it in localStorage — migrate to the cookie path.
 
 **Not in v1:** OAuth, MFA, session admin UI, BFF for token storage.

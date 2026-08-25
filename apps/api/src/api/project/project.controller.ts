@@ -21,7 +21,6 @@ import {
 } from "@/common/decorators";
 import { OrgMemberGuard, OrgRoleGuard } from "@/common/guards";
 import { AuthJwtUser } from "@/modules/auth/auth.entities";
-import { AuthUserJwtGuard } from "@/modules/auth/auth.guard";
 
 import {
   CreateProjectRequestDto,
@@ -33,7 +32,7 @@ import {
 import { ProjectService } from "./project.service";
 
 @Controller("projects")
-@UseGuards(AuthUserJwtGuard, OrgMemberGuard, OrgRoleGuard)
+@UseGuards(OrgMemberGuard, OrgRoleGuard)
 @ApiOrgIdHeader()
 export class ProjectController {
   constructor(private readonly service: ProjectService) {}
