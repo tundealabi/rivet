@@ -5,7 +5,6 @@ import {
   Get,
   HttpStatus,
   Param,
-  ParseUUIDPipe,
   Post,
   Query,
   UseGuards,
@@ -19,6 +18,7 @@ import {
   RequireOrgRole,
 } from "@/common/decorators";
 import { OrgMemberGuard, OrgRoleGuard } from "@/common/guards";
+import { ParseUuidPipe } from "@/common/pipes";
 import { AuthJwtUser } from "@/modules/auth/auth.entities";
 
 import {
@@ -179,7 +179,7 @@ export class OrganizationController {
     httpStatus: HttpStatus.OK,
     summary: "Resend an organization invite",
   })
-  resendInvite(@Param("id", ParseUUIDPipe) id: string) {
+  resendInvite(@Param("id", ParseUuidPipe) id: string) {
     return this.service.resendInvite({ id });
   }
 
@@ -203,7 +203,7 @@ export class OrganizationController {
     httpStatus: HttpStatus.OK,
     summary: "Revoke an organization invite",
   })
-  revokeInvite(@Param("id", ParseUUIDPipe) id: string) {
+  revokeInvite(@Param("id", ParseUuidPipe) id: string) {
     return this.service.revokeInvite({ id });
   }
 }
