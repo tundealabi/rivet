@@ -9,12 +9,13 @@ import {
 import { ApiExcludeController } from "@nestjs/swagger";
 import type { Request } from "express";
 
-import { SkipAllThrottlers } from "@/common/decorators";
+import { ApiPublic, SkipAllThrottlers } from "@/common/decorators";
 import { DomainError } from "@/common/errors";
 
 import { STRIPE_SIGNATURE_HEADER } from "./webhooks.constants";
 import { WebhooksService } from "./webhooks.service";
 
+@ApiPublic()
 @SkipAllThrottlers()
 @ApiExcludeController()
 @Controller("webhooks")

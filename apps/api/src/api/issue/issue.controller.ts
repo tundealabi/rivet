@@ -19,7 +19,6 @@ import {
   RequireOrgRole,
 } from "@/common/decorators";
 import { OrgMemberGuard, OrgRoleGuard } from "@/common/guards";
-import { AuthUserJwtGuard } from "@/modules/auth/auth.guard";
 
 import {
   CreateIssueCommentRequestDto,
@@ -38,7 +37,7 @@ import {
 import { IssueService } from "./issue.service";
 
 @Controller("issues")
-@UseGuards(AuthUserJwtGuard, OrgMemberGuard, OrgRoleGuard)
+@UseGuards(OrgMemberGuard, OrgRoleGuard)
 @ApiOrgIdHeader()
 export class IssueController {
   constructor(private readonly service: IssueService) {}

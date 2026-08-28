@@ -20,7 +20,6 @@ import {
 } from "@/common/decorators";
 import { OrgMemberGuard, OrgRoleGuard } from "@/common/guards";
 import { AuthJwtUser } from "@/modules/auth/auth.entities";
-import { AuthUserJwtGuard } from "@/modules/auth/auth.guard";
 
 import {
   CreateOrganizationInvitesRequestDto,
@@ -35,7 +34,6 @@ import {
 import { OrganizationService } from "./organization.service";
 
 @Controller("organizations")
-@UseGuards(AuthUserJwtGuard)
 export class OrganizationController {
   constructor(private readonly service: OrganizationService) {}
 

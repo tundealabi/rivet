@@ -21,7 +21,7 @@ function parseEnableDevFeatures(): boolean {
 }
 
 export default registerAs("app", (): AppConfigOptions => ({
-  corsOrigins: process.env.CORS_ORIGINS?.split(",") ?? [],
+  corsOrigins: process.env.APP_CORS_ORIGINS?.split(",") ?? [],
   enableDevFeatures: parseEnableDevFeatures(),
   globalPrefix: "/api",
   http: {

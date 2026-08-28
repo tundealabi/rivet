@@ -194,10 +194,6 @@ export class IssueService {
       id: existing.projectId,
     });
 
-    if (input.assigneeId) {
-      await this.assertAssigneeIsOrgMember(input.assigneeId);
-    }
-
     const conflicts = this.conflicts(existing, input);
 
     if (conflicts) {
@@ -207,6 +203,10 @@ export class IssueService {
         ErrorMessage.ISSUE_CONFLICT,
         conflicts
       );
+    }
+
+    if (input.assigneeId) {
+      await this.assertAssigneeIsOrgMember(input.assigneeId);
     }
 
     const current = this.casCurrent(existing, input);

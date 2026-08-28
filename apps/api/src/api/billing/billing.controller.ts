@@ -7,13 +7,12 @@ import {
   RequireOrgRole,
 } from "@/common/decorators";
 import { OrgMemberGuard, OrgRoleGuard } from "@/common/guards";
-import { AuthUserJwtGuard } from "@/modules/auth/auth.guard";
 
 import { BillingService } from "./billing.service";
 import { BillingCheckoutResponseDto, BillingSummaryResponseDto } from "./dto";
 
 @Controller("billing")
-@UseGuards(AuthUserJwtGuard, OrgMemberGuard, OrgRoleGuard)
+@UseGuards(OrgMemberGuard, OrgRoleGuard)
 @RequireOrgRole(OrganizationRole.OWNER)
 @ApiOrgIdHeader()
 export class BillingController {
