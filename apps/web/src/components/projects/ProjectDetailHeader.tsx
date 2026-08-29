@@ -20,11 +20,13 @@ import {
   PiPlusBold,
   PiSignOut,
 } from "react-icons/pi";
-import { Link as RouterLink, useNavigate } from "react-router-dom";
+import { Link as RouterLink } from "react-router-dom";
 
+import { isSessionExpiredError } from "../../auth-api";
 import { EASE_OUT, transition } from "../issues/issues-motion";
 import type { ProjectStats } from "./project-stats";
 import type { Project } from "./project-types";
+import type { UpdateProjectInput } from "./projects-api";
 import { ProjectStatStrip } from "./ProjectStatStrip";
 
 function StatusPill({ status }: { status: Project["status"] }) {
@@ -69,6 +71,7 @@ function InlineNameEditor({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
   const inputRef = useRef<HTMLInputElement>(null);
+  const ignoreBlurRef = useRef(false);
 
   const [prevValue, setPrevValue] = useState(value);
   if (prevValue !== value) {
@@ -76,19 +79,36 @@ function InlineNameEditor({
     setDraft(value);
   }
 
-  const [prevEditSignal, setPrevEditSignal] = useState(editSignal);
-  if (prevEditSignal !== editSignal) {
-    setPrevEditSignal(editSignal);
+  const [prevEditSignal, setPrevEditSignal] = useState({
+    editSignal,
+    editable,
+  });
+  if (
+    prevEditSignal.editSignal !== editSignal ||
+    prevEditSignal.editable !== editable
+  ) {
+    setPrevEditSignal({ editSignal, editable });
     if (editSignal > 0 && editable) {
       setEditing(true);
     }
   }
 
   useEffect(() => {
-    if (editing) {
+    if (!editing) return;
+
+    ignoreBlurRef.current = true;
+    const focusTimer = window.setTimeout(() => {
       inputRef.current?.focus();
       inputRef.current?.select();
-    }
+    }, 0);
+    const armTimer = window.setTimeout(() => {
+      ignoreBlurRef.current = false;
+    }, 300);
+
+    return () => {
+      window.clearTimeout(focusTimer);
+      window.clearTimeout(armTimer);
+    };
   }, [editing]);
 
   const commit = () => {
@@ -113,7 +133,13 @@ function InlineNameEditor({
         ref={inputRef}
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
+        onBlur={() => {
+          if (ignoreBlurRef.current) {
+            inputRef.current?.focus();
+            return;
+          }
+          commit();
+        }}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
             e.preventDefault();
@@ -402,7 +428,7 @@ interface DeleteProjectDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectName: string;
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
 }
 
 function DeleteProjectDialog({
@@ -412,11 +438,15 @@ function DeleteProjectDialog({
   onConfirm,
 }: DeleteProjectDialogProps) {
   const [confirmName, setConfirmName] = useState("");
+  const [pending, setPending] = useState(false);
 
   const [prevOpen, setPrevOpen] = useState(open);
   if (prevOpen !== open) {
     setPrevOpen(open);
-    if (!open) setConfirmName("");
+    if (!open) {
+      setConfirmName("");
+      setPending(false);
+    }
   }
 
   const matches = confirmName.trim() === projectName;
@@ -479,10 +509,18 @@ function DeleteProjectDialog({
               bg="status.error"
               color="white"
               _hover={{ bg: "red.600" }}
-              disabled={!matches}
+              disabled={!matches || pending}
+              loading={pending}
               onClick={() => {
-                onConfirm();
-                onOpenChange(false);
+                void (async () => {
+                  setPending(true);
+                  try {
+                    await onConfirm();
+                    onOpenChange(false);
+                  } catch {
+                    setPending(false);
+                  }
+                })();
               }}
             >
               Delete project
@@ -501,6 +539,8 @@ interface ProjectOverflowMenuProps {
   onArchive: () => void;
   onRestore: () => void;
   onDelete: () => void;
+  archivePending?: boolean;
+  deletePending?: boolean;
 }
 
 function ProjectOverflowMenu({
@@ -510,6 +550,8 @@ function ProjectOverflowMenu({
   onArchive,
   onRestore,
   onDelete,
+  archivePending = false,
+  deletePending = false,
 }: ProjectOverflowMenuProps) {
   const [open, setOpen] = useState(false);
 
@@ -579,6 +621,7 @@ function ProjectOverflowMenu({
                 borderRadius="control"
                 fontWeight="medium"
                 color="fg.primary"
+                disabled={archivePending}
                 onClick={() => closeAnd(onArchive)}
               >
                 Archive project
@@ -591,9 +634,10 @@ function ProjectOverflowMenu({
                 borderRadius="control"
                 fontWeight="medium"
                 color="fg.primary"
+                disabled={archivePending}
                 onClick={() => closeAnd(onRestore)}
               >
-                Restore project
+                Unarchive project
               </Button>
             )}
             <Box h="1px" bg="border.divider" my="0.5" />
@@ -606,6 +650,7 @@ function ProjectOverflowMenu({
               color="status.error"
               _hover={{ bg: "danger.ghostHover", color: "status.error" }}
               onClick={() => closeAnd(onDelete)}
+              disabled={deletePending}
             >
               Delete project
             </Button>
@@ -625,8 +670,13 @@ interface ProjectDetailHeaderProps {
   canManage: boolean;
   onLogout: () => void;
   onProjectChange: (patch: Partial<Project>) => void;
+  onUpdateProject: (input: UpdateProjectInput) => Promise<void>;
   onNewIssue: () => void;
-  onDeleteProject: () => void;
+  onDeleteProject: () => void | Promise<void>;
+  onArchive: () => void;
+  onRestore: () => void;
+  archivePending?: boolean;
+  deletePending?: boolean;
 }
 
 export function ProjectDetailHeader({
@@ -638,10 +688,14 @@ export function ProjectDetailHeader({
   canManage,
   onLogout,
   onProjectChange,
+  onUpdateProject,
   onNewIssue,
   onDeleteProject,
+  onArchive,
+  onRestore,
+  archivePending = false,
+  deletePending = false,
 }: ProjectDetailHeaderProps) {
-  const navigate = useNavigate();
   const [renameSignal, setRenameSignal] = useState(0);
   const [keyDialogOpen, setKeyDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -673,7 +727,7 @@ export function ProjectDetailHeader({
             </Text>
           </RouterLink>
           <PiCaretRight size={12} />
-          <Text color="fg.secondary" truncate>
+          <Text color="accent.default" fontWeight="medium" truncate>
             {project.name}
           </Text>
         </HStack>
@@ -691,8 +745,11 @@ export function ProjectDetailHeader({
                 editable={canEdit}
                 editSignal={renameSignal}
                 onSave={(name) => {
-                  onProjectChange({ name });
-                  toast.success("Project renamed");
+                  void onUpdateProject({ name })
+                    .then(() => toast.success("Project renamed"))
+                    .catch((error) => {
+                      if (isSessionExpiredError(error)) return;
+                    });
                 }}
               />
               <HStack gap="2" flexShrink="0">
@@ -712,8 +769,11 @@ export function ProjectDetailHeader({
               value={project.description}
               editable={canEdit}
               onSave={(description) => {
-                onProjectChange({ description });
-                toast.success("Description updated");
+                void onUpdateProject({ description })
+                  .then(() => toast.success("Description updated"))
+                  .catch((error) => {
+                    if (isSessionExpiredError(error)) return;
+                  });
               }}
             />
           </Box>
@@ -765,17 +825,17 @@ export function ProjectDetailHeader({
             {canManage && (
               <ProjectOverflowMenu
                 project={project}
-                onRename={() => setRenameSignal((n) => n + 1)}
+                onRename={() => {
+                  window.setTimeout(() => {
+                    setRenameSignal((n) => n + 1);
+                  }, 200);
+                }}
                 onChangeKey={() => setKeyDialogOpen(true)}
-                onArchive={() => {
-                  onProjectChange({ status: "archived" });
-                  toast.success("Project archived");
-                }}
-                onRestore={() => {
-                  onProjectChange({ status: "active" });
-                  toast.success("Project restored to active");
-                }}
+                onArchive={onArchive}
+                onRestore={onRestore}
                 onDelete={() => setDeleteDialogOpen(true)}
+                archivePending={archivePending}
+                deletePending={deletePending}
               />
             )}
           </HStack>
@@ -798,11 +858,7 @@ export function ProjectDetailHeader({
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
         projectName={project.name}
-        onConfirm={() => {
-          onDeleteProject();
-          toast.success("Project deleted");
-          void navigate("/projects");
-        }}
+        onConfirm={onDeleteProject}
       />
     </>
   );

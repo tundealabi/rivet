@@ -30,7 +30,6 @@ import {
   EMPTY_FILTERS,
   filterIssues,
   hasActiveFilters,
-  STATUS_OPTIONS,
 } from "../components/issues/issue-filters";
 import {
   canCreateIssues,
@@ -61,6 +60,7 @@ import {
   IssuesTableSkeleton,
 } from "../components/issues/IssuesPageStates";
 import { IssuesTableView } from "../components/issues/IssuesTableView";
+import { IssueStatusSelect } from "../components/issues/IssueStatusSelect";
 import { IssuesViewToggle } from "../components/issues/IssuesViewToggle";
 import {
   MOCK_CURRENT_USER,
@@ -346,21 +346,7 @@ function NewIssueDialog({
 
                   <Field.Root flex="1">
                     <Field.Label color="fg.primary">Status</Field.Label>
-                    <NativeSelect.Root size="sm">
-                      <NativeSelect.Field
-                        borderRadius="control"
-                        value={status}
-                        onChange={(e) =>
-                          setStatus(e.target.value as IssueStatus)
-                        }
-                      >
-                        {STATUS_OPTIONS.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </NativeSelect.Field>
-                    </NativeSelect.Root>
+                    <IssueStatusSelect value={status} onChange={setStatus} />
                   </Field.Root>
                 </HStack>
               </Stack>
