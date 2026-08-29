@@ -264,6 +264,8 @@ export class ApiExceptionFilter implements ExceptionFilter {
 
   private mapHttpStatusToErrorCode(status: HttpStatus): ErrorCode {
     switch (status) {
+      case HttpStatus.BAD_REQUEST:
+        return ErrorCode.VALIDATION_ERROR;
       case HttpStatus.UNAUTHORIZED:
         return ErrorCode.INVALID_CREDENTIALS;
       case HttpStatus.FORBIDDEN:
@@ -272,6 +274,8 @@ export class ApiExceptionFilter implements ExceptionFilter {
         return ErrorCode.NOT_FOUND;
       case HttpStatus.CONFLICT:
         return ErrorCode.CONFLICT;
+      case HttpStatus.UNPROCESSABLE_ENTITY:
+        return ErrorCode.UNPROCESSABLE_ENTITY;
       case HttpStatus.TOO_MANY_REQUESTS:
         return ErrorCode.TOO_MANY_REQUESTS;
       default:

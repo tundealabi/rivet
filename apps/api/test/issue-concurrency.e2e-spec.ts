@@ -220,6 +220,41 @@ describe("Issue field concurrency (e2e)", () => {
     expect(details.conflicts.assigneeId?.current).toBeNull();
   });
 
+  it("returns 409 for stale expectedAssigneeId before ASSIGNEE_NOT_ORG_MEMBER", async () => {
+    const issue = await seedIssue("Assignee stale beats membership");
+    const staleExpected = "11111111-1111-4111-8111-111111111111";
+    const nonMember = "22222222-2222-4222-8222-222222222222";
+
+    const res = await request(app.getHttpServer())
+      .patch(`${API_PREFIX}/issues/${issue.id}`)
+      .set(auth())
+      .send({
+        assigneeId: nonMember,
+        expectedAssigneeId: staleExpected,
+      })
+      .expect(409);
+
+    const body = res.body as ApiGeneralErrorResponseWire;
+    expect(body.error.code).toBe(ErrorCode.ISSUE_CONFLICT);
+  });
+
+  it("returns 422 when assignee is not an org member on a fresh expected", async () => {
+    const issue = await seedIssue("Assignee not member");
+    const nonMember = "22222222-2222-4222-8222-222222222222";
+
+    const res = await request(app.getHttpServer())
+      .patch(`${API_PREFIX}/issues/${issue.id}`)
+      .set(auth())
+      .send({
+        assigneeId: nonMember,
+        expectedAssigneeId: null,
+      })
+      .expect(422);
+
+    const body = res.body as ApiGeneralErrorResponseWire;
+    expect(body.error.code).toBe(ErrorCode.ASSIGNEE_NOT_ORG_MEMBER);
+  });
+
   it("applies a title change together with a valid status CAS", async () => {
     const issue = await seedIssue("Mixed fields");
 

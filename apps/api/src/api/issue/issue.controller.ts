@@ -5,7 +5,6 @@ import {
   Get,
   HttpStatus,
   Param,
-  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -19,7 +18,7 @@ import {
   RequireOrgRole,
 } from "@/common/decorators";
 import { OrgMemberGuard, OrgRoleGuard } from "@/common/guards";
-import { AuthUserJwtGuard } from "@/modules/auth/auth.guard";
+import { ParseUuidPipe } from "@/common/pipes";
 
 import {
   CreateIssueCommentRequestDto,
@@ -38,7 +37,7 @@ import {
 import { IssueService } from "./issue.service";
 
 @Controller("issues")
-@UseGuards(AuthUserJwtGuard, OrgMemberGuard, OrgRoleGuard)
+@UseGuards(OrgMemberGuard, OrgRoleGuard)
 @ApiOrgIdHeader()
 export class IssueController {
   constructor(private readonly service: IssueService) {}
@@ -153,7 +152,7 @@ export class IssueController {
     httpStatus: HttpStatus.OK,
     summary: "Get an issue",
   })
-  get(@Param("id", ParseUUIDPipe) id: string): Promise<IssueResponseDto> {
+  get(@Param("id", ParseUuidPipe) id: string): Promise<IssueResponseDto> {
     return this.service.getIssue(id);
   }
 
@@ -192,7 +191,7 @@ export class IssueController {
     summary: "Update an issue",
   })
   update(
-    @Param("id", ParseUUIDPipe) id: string,
+    @Param("id", ParseUuidPipe) id: string,
     @Body() dto: UpdateIssueRequestDto
   ): Promise<IssueResponseDto> {
     return this.service.updateIssue({
@@ -230,7 +229,7 @@ export class IssueController {
     httpStatus: HttpStatus.OK,
     summary: "Delete an issue",
   })
-  delete(@Param("id", ParseUUIDPipe) id: string): Promise<IssueResponseDto> {
+  delete(@Param("id", ParseUuidPipe) id: string): Promise<IssueResponseDto> {
     return this.service.deleteIssue(id);
   }
 
@@ -254,7 +253,7 @@ export class IssueController {
     summary: "List issue activity",
   })
   listActivity(
-    @Param("id", ParseUUIDPipe) issueId: string,
+    @Param("id", ParseUuidPipe) issueId: string,
     @Query() query: ListIssueActivityQueryDto
   ) {
     return this.service.listActivity({
@@ -286,7 +285,7 @@ export class IssueController {
     summary: "List issue comments",
   })
   listComments(
-    @Param("id", ParseUUIDPipe) issueId: string,
+    @Param("id", ParseUuidPipe) issueId: string,
     @Query() query: ListIssueCommentsQueryDto
   ) {
     return this.service.listComments({
@@ -326,7 +325,7 @@ export class IssueController {
     summary: "Create an issue comment",
   })
   createComment(
-    @Param("id", ParseUUIDPipe) issueId: string,
+    @Param("id", ParseUuidPipe) issueId: string,
     @Body() dto: CreateIssueCommentRequestDto
   ): Promise<IssueCommentResponseDto> {
     return this.service.createComment({
@@ -360,8 +359,8 @@ export class IssueController {
     summary: "Update an issue comment",
   })
   updateComment(
-    @Param("id", ParseUUIDPipe) issueId: string,
-    @Param("commentId", ParseUUIDPipe) commentId: string,
+    @Param("id", ParseUuidPipe) issueId: string,
+    @Param("commentId", ParseUuidPipe) commentId: string,
     @Body() dto: UpdateIssueCommentRequestDto
   ): Promise<IssueCommentResponseDto> {
     return this.service.updateComment({
@@ -396,8 +395,8 @@ export class IssueController {
     summary: "Delete an issue comment",
   })
   deleteComment(
-    @Param("id", ParseUUIDPipe) issueId: string,
-    @Param("commentId", ParseUUIDPipe) commentId: string
+    @Param("id", ParseUuidPipe) issueId: string,
+    @Param("commentId", ParseUuidPipe) commentId: string
   ): Promise<IssueCommentResponseDto> {
     return this.service.deleteComment({
       commentId,

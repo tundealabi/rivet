@@ -13,7 +13,7 @@ export interface LogoutAuthInput {
 
 export interface RegisterAuthInput extends Pick<
   LoginAuthInput,
-  "email" | "password"
+  "email" | "ipAddress" | "password" | "userAgent"
 > {
   firstName: string;
   lastName: string;

@@ -27,17 +27,17 @@ High-risk vs low-risk is a product judgment: cost of a silent overwrite, reversi
 
 ### Field policy
 
-| Fields                                                      | Concurrency                                  |
-| ----------------------------------------------------------- | -------------------------------------------- |
-| `status`, `assigneeId`                                      | Expected-value compare-and-swap (CAS)        |
-| `description`                                               | Expected content hash (computed, not stored) |
-| All other updatable issue fields (e.g. `title`, `priority`) | Last-write-wins on partial PATCH             |
+| Fields                 | Concurrency                                  |
+| ---------------------- | -------------------------------------------- |
+| `status`, `assigneeId` | Expected-value compare-and-swap (CAS)        |
+| `description`          | Expected content hash (computed, not stored) |
+| `title`, `priority`    | Last-write-wins on partial PATCH             |
 
 Updates remain **field-level / partial**: only fields present in the request are written. Low-risk fields do not participate in version/CAS checks, so they do not false-conflict with high-risk edits.
 
 ### Status & assignee - expected-value CAS
 
-When the PATCH includes `status` or `assigneeId`, the client also sends the value it believes is current (e.g. `expectedStatus`, `expectedAssigneeId`, including `null` for unassigned).
+When the PATCH includes `status` or `assigneeId`, the client must send the value it believes is current (`expectedStatus`, `expectedAssigneeId`, including `null` for unassigned). Missing `expected*` → request validation error (`400`). Same for `description` / `expectedDescriptionHash`.
 
 The update succeeds only if the row’s current value matches. Mismatch → conflict (`409`), not a silent overwrite.
 
@@ -47,26 +47,36 @@ No `statusVersion` / `assigneeVersion` columns.
 
 No `descriptionVersion` or stored hash column.
 
-- **Read:** API hashes the current `description` (stable algorithm over exact stored UTF-8) and returns e.g. `descriptionHash` on the issue payload.
+Algorithm: unkeyed SHA-256 hex over the exact UTF-8 bytes of the stored `description` (64-char lowercase hex). Implementation: `HashService.fingerprint` in `apps/api`; wire shape: `IssueDescriptionHashSchema` in `@rivet/shared`.
+
+- **Read:** API fingerprints the current `description` and returns `descriptionHash` on the issue payload.
 - **Write:** Client sends `expectedDescriptionHash` from its last read plus the new `description`.
-- **Server:** Re-hash current DB `description`, compare to `expectedDescriptionHash`. Match → update. Mismatch → `409` with current description and a fresh hash.
+- **Server:** Re-fingerprint current DB `description`, compare to `expectedDescriptionHash`. Match → update. Mismatch → `409` with current description and a fresh hash.
 
-### Status transition rules (orthogonal to concurrency)
+### Domain rules after CAS
 
-Every status change is validated against an allowed transition graph from the current DB status to the proposed status, whether or not a concurrency token is present.
+High-risk PATCH always includes matching `expected*` (see above). Precedence: expected-value / hash mismatch → `409` / `ISSUE_CONFLICT` first (and instead of evaluating domain rules against the proposed write). Only after expected values match does the server run:
 
-- Illegal transition → domain rule violation (not a conflict)
-- Stale expected value → `409` conflict
+- Status transition graph (`current → proposed`) → illegal → `422` / `ISSUE_STATUS_TRANSITION`. The graph includes identity edges (`TODO → TODO`, etc.) so a matching retry that sets the same status is allowed, not `422`.
+- Assignee must be an org member → not a member → `422` / `ASSIGNEE_NOT_ORG_MEMBER`
 
-Both checks apply on status updates. Transition rules alone do not prevent lost updates; CAS alone does not enforce workflow.
+So a stale expected plus an illegal transition or a non-member assignee still returns `409`, not `422`. Domain rules alone do not prevent lost updates; CAS alone does not enforce workflow or membership. Living summary: [ARCHITECTURE — Concurrency](../ARCHITECTURE.md#concurrency).
 
 ### Conflict handling (clients)
 
-On high-risk field conflicts, the API returns enough current server state for the client to show what changed vs what the user intended. Description may use a merge UI; status/assignee may use keep-mine / take-theirs / cancel style resolution after refresh.
+On high-risk field conflicts, `409` / `ISSUE_CONFLICT` returns `error.details.conflicts` for **stale high-risk fields in this PATCH only** (wire: `IssueConflictDetailsSchema` in `@rivet/shared`):
+
+- `status` → `{ current }`
+- `assigneeId` → `{ current }`
+- `description` → `{ current, descriptionHash }` (fresh fingerprint)
+
+No actor, timestamp, or full issue DTO on the conflict payload. Clients can show merge / keep-mine / take-theirs / cancel from those field values; who/when comes from `GET /issues/:id/activity`.
 
 ### Issue activity (not event sourcing)
 
-Successful field-level writes also insert append-only `IssueActivity` row(s) in the same transaction. That provides an audit trail, an issue activity feed, and context for conflict UX (who changed the field, and when). This is not CQRS/event-sourced projections; the Issue row remains the source of truth for current values.
+Successful **field-level updates** (PATCH) insert append-only `IssueActivity` row(s) in the same transaction (`IssueActivityField`: assignee / description / priority / status / title). That is a change log (who changed a field and when), not a full issue timeline and not CQRS/event-sourced projections. The Issue row remains the source of truth for current values. Conflict resolution values stay on the `409` payload above.
+
+**Create does not write `IssueActivity`.** There is no `CREATED` activity field. Birth time is `Issue.createdAt` on the issue payload. A brand-new issue may have an empty activity list until the first field change.
 
 ### Explicitly out of scope
 
@@ -74,6 +84,7 @@ Successful field-level writes also insert append-only `IssueActivity` row(s) in 
 - Row/document version on the whole issue
 - CRDTs / OT for description
 - Event sourcing or CQRS as the concurrency model
+- Create-time `IssueActivity` / a `CREATED` activity field (see Issue activity above)
 
 ## Alternatives considered
 
@@ -111,7 +122,7 @@ Successful field-level writes also insert append-only `IssueActivity` row(s) in 
 - [x] Define conflict error codes/payloads vs transition rule-violation errors
 - [x] Add `IssueActivity` model and same-transaction writes on successful field updates
 - [x] Update `docs/ARCHITECTURE.md` concurrency section to point at this ADR
-- [ ] Client: conflict banner / merge UI for description; simpler resolution for status and assignee
+- [x] Client conflict UX: API contract shipped (`409` / `IssueConflictDetailsSchema` + e2e). Web conflict banner / merge UI deferred — not wired to the real PATCH path yet.
 
 ## References
 

@@ -15,6 +15,7 @@ import { StorageService } from "@/storage/storage.service";
 
 import {
   EXPORT_ERROR_DURATION_LIMIT,
+  EXPORT_JOB_ATTEMPTS,
   EXPORT_OBJECT_TTL_MS,
   EXPORT_WORKER_MAX_DURATION_MS,
   EXPORT_WORKER_PAGE_SIZE,
@@ -27,6 +28,17 @@ const payload: ExportJobPayload = {
   organizationId: "22222222-2222-2222-2222-222222222222",
   requestedById: "33333333-3333-3333-3333-333333333333",
 };
+
+function bullJob(
+  overrides: Partial<Job<ExportJobPayload>> = {}
+): Job<ExportJobPayload> {
+  return {
+    attemptsMade: 0,
+    data: payload,
+    opts: { attempts: EXPORT_JOB_ATTEMPTS },
+    ...overrides,
+  } as Job<ExportJobPayload>;
+}
 
 const objectKey = `${payload.organizationId}/exports/${payload.exportJobId}.csv`;
 
@@ -137,7 +149,7 @@ describe("ExportJobProcessor", () => {
       tenantContext,
     });
 
-    await instance.process({ data: payload } as Job<ExportJobPayload>);
+    await instance.process(bullJob());
 
     expect(runWithTenantContext).toHaveBeenCalledTimes(1);
     expect(getById).toHaveBeenCalledWith(payload.exportJobId);
@@ -168,7 +180,7 @@ describe("ExportJobProcessor", () => {
       },
     });
 
-    await instance.process({ data: payload } as Job<ExportJobPayload>);
+    await instance.process(bullJob());
 
     expect(iterateForExport).toHaveBeenCalledWith({
       assigneeId: undefined,
@@ -206,7 +218,7 @@ describe("ExportJobProcessor", () => {
         update: jest.fn().mockResolvedValue({}),
       },
       issueService: { iterateForExport },
-    }).process({ data: payload } as Job<ExportJobPayload>);
+    }).process(bullJob());
 
     expect(iterateForExport).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -226,7 +238,7 @@ describe("ExportJobProcessor", () => {
         update: jest.fn().mockResolvedValue({}),
       },
       issueService: { iterateForExport },
-    }).process({ data: payload } as Job<ExportJobPayload>);
+    }).process(bullJob());
 
     expect(iterateForExport).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -253,7 +265,7 @@ describe("ExportJobProcessor", () => {
       },
       issueService: { iterateForExport },
       storage: { objectKey: jest.fn(), upload },
-    }).process({ data: payload } as Job<ExportJobPayload>);
+    }).process(bullJob());
 
     expect(update).not.toHaveBeenCalled();
     expect(iterateForExport).not.toHaveBeenCalled();
@@ -261,7 +273,7 @@ describe("ExportJobProcessor", () => {
     expect(recordExportJob).not.toHaveBeenCalled();
   });
 
-  it("marks FAILED and rethrows when upload fails so BullMQ can retry", async () => {
+  it("leaves RUNNING and rethrows on retryable upload failure before the last attempt", async () => {
     const error = jest.spyOn(Logger.prototype, "error").mockImplementation();
     const recordExportJob = jest.spyOn(Metrics, "recordExportJob");
     const update = jest.fn().mockResolvedValue({});
@@ -279,7 +291,52 @@ describe("ExportJobProcessor", () => {
     });
 
     await expect(
-      instance.process({ data: payload } as Job<ExportJobPayload>)
+      instance.process(
+        bullJob({ attemptsMade: 0, opts: { attempts: EXPORT_JOB_ATTEMPTS } })
+      )
+    ).rejects.toThrow("S3 down");
+
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(update).toHaveBeenCalledWith(payload.exportJobId, {
+      error: null,
+      status: ExportJobStatus.RUNNING,
+    });
+    expect(error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        err: boom,
+        exportJobId: payload.exportJobId,
+        msg: "export_failed",
+        orgId: payload.organizationId,
+        terminal: false,
+      })
+    );
+    expect(recordExportJob).not.toHaveBeenCalled();
+  });
+
+  it("marks FAILED and rethrows on the last BullMQ attempt", async () => {
+    const error = jest.spyOn(Logger.prototype, "error").mockImplementation();
+    const recordExportJob = jest.spyOn(Metrics, "recordExportJob");
+    const update = jest.fn().mockResolvedValue({});
+    const boom = new Error("S3 down");
+
+    const instance = processor({
+      exportService: {
+        getById: jest.fn().mockResolvedValue(queuedJob),
+        update,
+      },
+      storage: {
+        objectKey: jest.fn().mockReturnValue(objectKey),
+        upload: jest.fn().mockRejectedValue(boom),
+      },
+    });
+
+    await expect(
+      instance.process(
+        bullJob({
+          attemptsMade: EXPORT_JOB_ATTEMPTS - 1,
+          opts: { attempts: EXPORT_JOB_ATTEMPTS },
+        })
+      )
     ).rejects.toThrow("S3 down");
 
     expect(update).toHaveBeenNthCalledWith(2, payload.exportJobId, {
@@ -292,6 +349,7 @@ describe("ExportJobProcessor", () => {
         exportJobId: payload.exportJobId,
         msg: "export_failed",
         orgId: payload.organizationId,
+        terminal: true,
       })
     );
     expect(recordExportJob).toHaveBeenCalledWith("failed");
@@ -315,9 +373,9 @@ describe("ExportJobProcessor", () => {
       issueService: { iterateForExport },
     });
 
-    await expect(
-      instance.process({ data: payload } as Job<ExportJobPayload>)
-    ).rejects.toBeInstanceOf(UnrecoverableError);
+    await expect(instance.process(bullJob())).rejects.toBeInstanceOf(
+      UnrecoverableError
+    );
 
     expect(update).toHaveBeenCalledWith(payload.exportJobId, {
       error: EXPORT_ERROR_DURATION_LIMIT,
@@ -341,8 +399,8 @@ describe("ExportJobProcessor", () => {
       },
     });
 
-    await expect(
-      instance.process({ data: payload } as Job<ExportJobPayload>)
-    ).rejects.toBeInstanceOf(UnrecoverableError);
+    await expect(instance.process(bullJob())).rejects.toBeInstanceOf(
+      UnrecoverableError
+    );
   });
 });

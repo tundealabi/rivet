@@ -33,6 +33,12 @@ const CREATE_OPERATIONS = new Set([
   "createManyAndReturn",
 ]);
 
+const UPDATE_DATA_OPERATIONS = new Set([
+  "update",
+  "updateMany",
+  "updateManyAndReturn",
+]);
+
 function requireOrgId(
   getOrgId: () => string | undefined,
   model: string,
@@ -81,7 +87,18 @@ function mergeOrgIntoData(
   };
 }
 
-function applyTenantScope(
+function mergeOrgIntoWriteData(
+  data: Record<string, unknown> | Record<string, unknown>[] | undefined,
+  orgId: string
+): Record<string, unknown> | Record<string, unknown>[] {
+  if (Array.isArray(data)) {
+    return data.map((item) => mergeOrgIntoData(item, orgId));
+  }
+  return mergeOrgIntoData(data ?? {}, orgId);
+}
+
+/** Exported for unit tests — scopes Prisma args for allowlisted models. */
+export function applyTenantScope(
   operation: string,
   args: QueryArgs,
   orgId: string
@@ -92,24 +109,18 @@ function applyTenantScope(
     scopedArgs.where = mergeOrgIntoWhere(scopedArgs.where, orgId);
   }
 
-  if (CREATE_OPERATIONS.has(operation) && scopedArgs.data) {
-    if (Array.isArray(scopedArgs.data)) {
-      scopedArgs.data = scopedArgs.data.map((item) =>
-        mergeOrgIntoData(item, orgId)
-      );
-    } else {
-      scopedArgs.data = mergeOrgIntoData(scopedArgs.data, orgId);
-    }
+  if (CREATE_OPERATIONS.has(operation) && scopedArgs.data !== undefined) {
+    scopedArgs.data = mergeOrgIntoWriteData(scopedArgs.data, orgId);
+  }
+
+  if (UPDATE_DATA_OPERATIONS.has(operation)) {
+    scopedArgs.data = mergeOrgIntoWriteData(scopedArgs.data, orgId);
   }
 
   if (operation === "upsert") {
     scopedArgs.where = mergeOrgIntoWhere(scopedArgs.where, orgId);
     scopedArgs.create = mergeOrgIntoData(scopedArgs.create ?? {}, orgId);
-    scopedArgs.update = scopedArgs.update ?? {};
-  }
-
-  if (operation === "update" || operation === "updateManyAndReturn") {
-    scopedArgs.data = scopedArgs.data ?? {};
+    scopedArgs.update = mergeOrgIntoData(scopedArgs.update ?? {}, orgId);
   }
 
   return scopedArgs;

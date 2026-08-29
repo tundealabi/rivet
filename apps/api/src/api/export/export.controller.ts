@@ -5,7 +5,6 @@ import {
   Headers,
   HttpStatus,
   Param,
-  ParseUUIDPipe,
   Post,
   UseGuards,
 } from "@nestjs/common";
@@ -19,13 +18,13 @@ import {
   RequireOrgRole,
 } from "@/common/decorators";
 import { OrgMemberGuard, OrgRoleGuard } from "@/common/guards";
-import { AuthUserJwtGuard } from "@/modules/auth/auth.guard";
+import { ParseUuidPipe } from "@/common/pipes";
 
 import { CreateExportRequestDto, ExportJobResponseDto } from "./dto";
 import { ExportService } from "./export.service";
 
 @Controller("exports")
-@UseGuards(AuthUserJwtGuard, OrgMemberGuard, OrgRoleGuard)
+@UseGuards(OrgMemberGuard, OrgRoleGuard)
 @ApiOrgIdHeader()
 export class ExportController {
   constructor(private readonly service: ExportService) {}
@@ -89,7 +88,7 @@ export class ExportController {
     httpStatus: HttpStatus.OK,
     summary: "Get an export job",
   })
-  get(@Param("id", ParseUUIDPipe) id: string): Promise<ExportJobResponseDto> {
+  get(@Param("id", ParseUuidPipe) id: string): Promise<ExportJobResponseDto> {
     return this.service.getExport(id);
   }
 }

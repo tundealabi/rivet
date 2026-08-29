@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Date
 
@@ -22,11 +22,11 @@ Every issue CSV export is a BullMQ job.
 
 1. `POST` with the current list filters (`projectId`, optional `status`, `priority`, `assigneeId`). Persist that snapshot on the job. Retries reuse it.
 2. `OrgMemberGuard`. Check org plan quota, insert `ExportJob`, charge quota, enqueue BullMQ after commit. Return **202** + job id.
-3. Dedupe with an idempotency key (user + filter hash + in-flight job). Failed jobs after retries do not refund in v1.
-4. Worker sets CLS from the job payload (`orgId`, `userId`), then cursor-streams rows from `modules/issue`. Encode CSV incrementally; upload via the S3 API. No Prisma transaction around the upload.
-5. Client polls `queued` | `running` | `succeeded` | `failed`. Download is a short-lived signed GET. Object + job expire. Requester only.
+3. Dedupe with a required client `Idempotency-Key`. Unique on `(organizationId, requestedById, idempotencyKey)`. Replay returns the existing job and does not re-charge quota; filters are snapshotted on first create and are not part of the key. Terminal `FAILED` (after BullMQ attempts) is final for that job: no re-enqueue, no retry endpoint, no quota refund. A new export needs a new key and charges again.
+4. Worker sets CLS from the job payload (`orgId`, `userId`), then cursor-streams rows from `modules/issue`. Encode CSV incrementally; upload via the S3 API. No Prisma transaction around the upload. Retryable errors leave the job `RUNNING` until the last BullMQ attempt (or an unrecoverable/cap error); only then is status set to `FAILED`.
+5. Client polls `queued` | `running` | `succeeded` | `failed`. `failed` means terminal. Download is a short-lived signed GET. Object + job expire. Requester only.
 
-Quota is org-wide (the subscription), not per user. Any org member who can `GET /issues` can create an export.
+Quota is org-wide (the subscription), not per user. Create is `MEMBER+` (VIEWER cannot). Any org member can poll a job they requested. Archived projects may be exported (historical snapshot); archive blocks mutating writes, not CSV.
 
 Columns are a subset of issue fields. Do not select a wider Prisma shape than the issue DTO.
 
@@ -34,11 +34,11 @@ Columns are a subset of issue fields. Do not select a wider Prisma shape than th
 
 Export is multi-domain. It does not live in `modules/issue`.
 
-| Piece                | Where                              |
-| -------------------- | ---------------------------------- |
-| HTTP, quota, enqueue | `api/exports`                      |
-| Row source           | `modules/issue` cursor iterator    |
-| Upload + signed URL  | storage adapter used by the worker |
+| Piece                          | Where                                       |
+| ------------------------------ | ------------------------------------------- |
+| HTTP, quota, enqueue, sign GET | `api/export`                                |
+| Row source                     | `modules/issue` cursor iterator             |
+| Upload                         | worker via storage adapter (`jobs/exports`) |
 
 `modules/issue` does not import billing, BullMQ, or the S3 client.
 
@@ -62,12 +62,14 @@ Point-in-time snapshot of the filter, not a live board.
 
 ### Storage
 
-S3 API (endpoint + credentials). Not Cloudflare Workers R2 bindings (workers; this worker is Nest/BullMQ on Render).
+S3 API (endpoint + credentials). Nest/BullMQ on Render talks to object storage over the S3 API (not provider-specific bindings).
 
 | Env        | Bucket          |
 | ---------- | --------------- |
-| Production | Cloudflare R2   |
+| Production | Backblaze B2    |
 | Local / CI | MinIO in docker |
+
+Amazon S3 was not chosen for production: same S3 API, but egress-priced, no lasting free tier, and we are not on AWS.
 
 Job stores the object key. Signed GET, short TTL, `Content-Disposition: attachment`. Bucket CORS allows the web origin.
 
@@ -86,7 +88,6 @@ Job stores the object key. Signed GET, short TTL, `Content-Disposition: attachme
 | Client-side CSV from list JSON        | Quota unenforceable; client can miss pages                       |
 | Sync HTTP download (buffer or stream) | API worker lifetime = result size; no durable quota/retry record |
 | Hybrid: sync under N rows             | Two paths; quota still needs a job row                           |
-| Amazon S3 as the production bucket    | Same API; egress-priced; no lasting free tier; we are not on AWS |
 
 ## Consequences
 
@@ -101,7 +102,7 @@ Job stores the object key. Signed GET, short TTL, `Content-Disposition: attachme
 ### Negative
 
 - Client must poll
-- Job table, R2/MinIO, TTL sweeper
+- Job table, B2/MinIO; prod object TTL via B2 bucket lifecycle (ops), not an app sweeper
 - Snapshot lags the board
 - Failed jobs still consume quota in v1
 - One member can exhaust the org monthly quota
@@ -110,7 +111,7 @@ Job stores the object key. Signed GET, short TTL, `Content-Disposition: attachme
 
 - [x] `ExportJob` model
 - [x] `runWithTenantContext` for the worker ([ADR-0002](./0002-application-layer-tenant-isolation.md))
-- [x] R2 (prod) + MinIO (`docker-compose`) + S3 client / signed URL via env
+- [x] B2 (prod) + MinIO (`docker-compose`) + S3 client / signed URL via env
 - [x] Quota on enqueue; `429` when over `PLAN_LIMITS`
 - [x] Idempotency key on create
 - [x] Wire types in `@rivet/shared`
@@ -124,4 +125,4 @@ Job stores the object key. Signed GET, short TTL, `Content-Disposition: attachme
 - [ADR-0002](./0002-application-layer-tenant-isolation.md)
 - `packages/shared/src/api/issue/list-issues.query.ts`
 - `apps/web/src/components/billing/billing-plan-data.ts` (`exportsPerMonth`)
-- [R2 pricing](https://developers.cloudflare.com/r2/pricing/)
+- [B2 pricing](https://www.backblaze.com/cloud-storage/pricing)

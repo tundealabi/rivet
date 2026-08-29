@@ -19,6 +19,7 @@ import {
   type TenantContextStore,
 } from "@/common/constants/tenant-context.constants";
 import { DomainError } from "@/common/errors";
+import { TenantContextService } from "@/common/services";
 import { AUTH_CONSTANTS } from "@/modules/auth/auth.constants";
 import { IssueService } from "@/modules/issue/issue.service";
 import { ProjectService } from "@/modules/project/project.service";
@@ -428,5 +429,55 @@ describe("Tenant isolation (e2e)", () => {
         name: DomainError.name,
       });
     });
+  });
+
+  it("scopes module queries under runWithTenantContext like jobs and webhooks", async () => {
+    const tenantContext = app.get(TenantContextService);
+    const projectService = app.get(ProjectService);
+    const issueService = app.get(IssueService);
+
+    await tenantContext.runWithTenantContext(
+      { orgId: orgA.orgId, userId: orgA.userId },
+      async () => {
+        const project = await projectService.findById({ id: orgAProjectId });
+        expect(project?.id).toBe(orgAProjectId);
+
+        const issue = await issueService.findById({ id: orgAIssueId });
+        expect(issue?.id).toBe(orgAIssueId);
+      }
+    );
+
+    await tenantContext.runWithTenantContext(
+      { orgId: orgB.orgId, userId: orgB.userId },
+      async () => {
+        expect(await projectService.findById({ id: orgAProjectId })).toBeNull();
+        expect(await issueService.findById({ id: orgAIssueId })).toBeNull();
+
+        expect(
+          await projectService.update(orgAProjectId, {
+            name: "Cross-tenant async CLS update",
+          })
+        ).toBeNull();
+
+        await expect(
+          issueService.update({
+            id: orgAIssueId,
+            title: "Cross-tenant async CLS update",
+          })
+        ).rejects.toMatchObject({
+          code: ErrorCode.NOT_FOUND,
+          kind: "NOT_FOUND",
+          name: DomainError.name,
+        });
+      }
+    );
+
+    // Stripe-style: orgId only is enough for allowlisted scoping
+    await tenantContext.runWithTenantContext(
+      { orgId: orgB.orgId },
+      async () => {
+        expect(await projectService.findById({ id: orgAProjectId })).toBeNull();
+      }
+    );
   });
 });

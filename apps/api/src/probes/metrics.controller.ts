@@ -8,11 +8,16 @@ import {
 import { ApiExcludeController } from "@nestjs/swagger";
 import type { Response } from "express";
 
-import { SkipAllThrottlers, SkipApiEnvelope } from "@/common/decorators";
+import {
+  ApiPublic,
+  SkipAllThrottlers,
+  SkipApiEnvelope,
+} from "@/common/decorators";
 import { Metrics } from "@/observability";
 
 import { MetricsBearerGuard } from "./metrics-bearer.guard";
 
+@ApiPublic()
 @Controller({ version: VERSION_NEUTRAL })
 @ApiExcludeController()
 @SkipAllThrottlers()

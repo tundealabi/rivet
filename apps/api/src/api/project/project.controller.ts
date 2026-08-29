@@ -5,7 +5,6 @@ import {
   Get,
   HttpStatus,
   Param,
-  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -20,8 +19,8 @@ import {
   RequireOrgRole,
 } from "@/common/decorators";
 import { OrgMemberGuard, OrgRoleGuard } from "@/common/guards";
+import { ParseUuidPipe } from "@/common/pipes";
 import { AuthJwtUser } from "@/modules/auth/auth.entities";
-import { AuthUserJwtGuard } from "@/modules/auth/auth.guard";
 
 import {
   CreateProjectRequestDto,
@@ -33,7 +32,7 @@ import {
 import { ProjectService } from "./project.service";
 
 @Controller("projects")
-@UseGuards(AuthUserJwtGuard, OrgMemberGuard, OrgRoleGuard)
+@UseGuards(OrgMemberGuard, OrgRoleGuard)
 @ApiOrgIdHeader()
 export class ProjectController {
   constructor(private readonly service: ProjectService) {}
@@ -108,7 +107,7 @@ export class ProjectController {
   })
   get(
     @ApiRequestUser() user: AuthJwtUser,
-    @Param("id", ParseUUIDPipe) id: string
+    @Param("id", ParseUuidPipe) id: string
   ): Promise<ProjectDetailResponseDto> {
     return this.service.getProject(id, user.sub);
   }
@@ -132,7 +131,7 @@ export class ProjectController {
     httpStatus: HttpStatus.OK,
     summary: "Archive a project",
   })
-  archive(@Param("id", ParseUUIDPipe) id: string): Promise<ProjectResponseDto> {
+  archive(@Param("id", ParseUuidPipe) id: string): Promise<ProjectResponseDto> {
     return this.service.archiveProject(id);
   }
 
@@ -156,7 +155,7 @@ export class ProjectController {
     summary: "Unarchive a project",
   })
   unarchive(
-    @Param("id", ParseUUIDPipe) id: string
+    @Param("id", ParseUuidPipe) id: string
   ): Promise<ProjectResponseDto> {
     return this.service.unarchiveProject(id);
   }
@@ -180,7 +179,7 @@ export class ProjectController {
     httpStatus: HttpStatus.OK,
     summary: "Delete a project",
   })
-  delete(@Param("id", ParseUUIDPipe) id: string): Promise<ProjectResponseDto> {
+  delete(@Param("id", ParseUuidPipe) id: string): Promise<ProjectResponseDto> {
     return this.service.deleteProject(id);
   }
 
@@ -207,7 +206,7 @@ export class ProjectController {
     summary: "Update a project",
   })
   update(
-    @Param("id", ParseUUIDPipe) id: string,
+    @Param("id", ParseUuidPipe) id: string,
     @Body() dto: UpdateProjectRequestDto
   ): Promise<ProjectResponseDto> {
     return this.service.updateProject({

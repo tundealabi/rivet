@@ -2,11 +2,16 @@ import { Controller, Get, VERSION_NEUTRAL } from "@nestjs/common";
 import { ApiExcludeController } from "@nestjs/swagger";
 import { HealthCheck, HealthCheckService } from "@nestjs/terminus";
 
-import { SkipAllThrottlers, SkipApiEnvelope } from "@/common/decorators";
+import {
+  ApiPublic,
+  SkipAllThrottlers,
+  SkipApiEnvelope,
+} from "@/common/decorators";
 
 import { PostgresHealthIndicator } from "./postgres.health";
 import { RedisHealthIndicator } from "./redis.health";
 
+@ApiPublic()
 @Controller({ version: VERSION_NEUTRAL })
 @ApiExcludeController()
 @SkipAllThrottlers()
