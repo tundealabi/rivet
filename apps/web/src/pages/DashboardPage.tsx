@@ -3,16 +3,14 @@ import { useMemo, useState } from "react";
 import { PiSignOut } from "react-icons/pi";
 import { useNavigate } from "react-router-dom";
 
+import { getStoredUser } from "../auth-api";
 import { AppSidebar } from "../components/app/AppSidebar";
 import { useLogout } from "../components/app/use-logout";
 import { SitewidePaymentWarning } from "../components/billing/SitewidePaymentWarning";
 import { useActiveOrg } from "../components/billing/use-active-org";
 import { useBillingSummary } from "../components/billing/use-billing-queries";
 import { sortMyIssues } from "../components/dashboard/dashboard-content";
-import {
-  firstNameFromFullName,
-  formatDashboardDate,
-} from "../components/dashboard/dashboard-greeting";
+import { formatDashboardDate } from "../components/dashboard/dashboard-greeting";
 import { usesPersonalPulse } from "../components/dashboard/dashboard-permissions";
 import {
   DashboardMainGrid,
@@ -35,35 +33,45 @@ import {
   useRetryDashboardStatCard,
 } from "../components/dashboard/use-dashboard-queries";
 import { MOCK_CURRENT_USER } from "../components/issues/mock-issues-data";
+import { useProjectsList } from "../components/projects/use-projects-queries";
 
 export default function DashboardPage() {
   const logout = useLogout();
   const navigate = useNavigate();
-  const { orgId, orgName, role } = useActiveOrg();
+  const { orgId, orgName, role, orgsStatus } = useActiveOrg();
   const billingQuery = useBillingSummary(orgId);
   const paymentPastDue = billingQuery.data?.subscription.pastDue === true;
 
   const snapshot = useDashboardSnapshot(orgId);
+  const projectsQuery = useProjectsList(orgId);
+  const projects = projectsQuery.data ?? [];
   const personalFourthCard = usesPersonalPulse(role);
 
+  const projectsLoading =
+    orgsStatus === "loading" ||
+    (Boolean(orgId) && projectsQuery.isPending && !projectsQuery.data);
+  const projectsError =
+    Boolean(orgId) && projectsQuery.isError && !projectsQuery.data;
+
   const isBrandNewOrg =
-    snapshot.projects.length === 0 && snapshot.issues.length === 0;
-  const hasProjects = snapshot.projects.length > 0;
+    !projectsLoading && !projectsError && projects.length === 0;
+  const hasProjects = projects.length > 0;
+  const showDashboard = !projectsLoading && !projectsError && !isBrandNewOrg;
 
   const statCards = useDashboardStatCards(
     orgId,
     MOCK_CURRENT_USER,
     role,
-    !isBrandNewOrg
+    showDashboard
   );
-  const activityQuery = useDashboardActivity(orgId, !isBrandNewOrg);
+  const activityQuery = useDashboardActivity(orgId, showDashboard);
   const retryStatCard = useRetryDashboardStatCard(orgId);
 
   const [retryingCards, setRetryingCards] = useState<
     Partial<Record<DashboardStatCardKey, boolean>>
   >({});
 
-  const firstName = firstNameFromFullName(MOCK_CURRENT_USER);
+  const firstName = getStoredUser()?.firstName.trim() || "there";
   const dateLabel = formatDashboardDate();
 
   const failedCards = useMemo(() => {
@@ -130,8 +138,8 @@ export default function DashboardPage() {
 
   const statsLoading = statCards.isInitialLoading;
   const activityLoading = activityQuery.isLoading && !activityQuery.data;
-  const headerLoading = statsLoading && !isBrandNewOrg;
-  const showFullPageError = statCards.allFailed;
+  const headerLoading = projectsLoading || (statsLoading && showDashboard);
+  const showFullPageError = projectsError || statCards.allFailed;
 
   return (
     <Flex minH="100svh" bg="bg.canvas">
@@ -167,9 +175,21 @@ export default function DashboardPage() {
                   : `Hello ${firstName} 👋`}
               </Heading>
               <Text fontSize="sm" color="fg.secondary" mt="1">
-                {isBrandNewOrg
-                  ? "Let's get your workspace set up."
-                  : `Here's what's happening at ${orgName}.`}
+                {isBrandNewOrg ? (
+                  "Let's get your workspace set up."
+                ) : (
+                  <>
+                    Here's what's happening at{" "}
+                    <Text
+                      as="span"
+                      color="accent.default"
+                      fontWeight="semibold"
+                    >
+                      {orgName}
+                    </Text>
+                    .
+                  </>
+                )}
               </Text>
             </Box>
           )}
@@ -207,6 +227,7 @@ export default function DashboardPage() {
           {showFullPageError && (
             <DashboardErrorState
               onRetry={() => {
+                void projectsQuery.refetch();
                 void statCards.byKey.open?.refetch();
                 void statCards.byKey.in_progress?.refetch();
                 void statCards.byKey.done_week?.refetch();
@@ -215,14 +236,21 @@ export default function DashboardPage() {
             />
           )}
 
-          {!showFullPageError && isBrandNewOrg && (
+          {!showFullPageError && projectsLoading && (
+            <>
+              <DashboardStatRowSkeleton />
+              <DashboardMainGridSkeleton />
+            </>
+          )}
+
+          {!showFullPageError && !projectsLoading && isBrandNewOrg && (
             <DashboardWelcomeEmptyState
               firstName={firstName}
               onCreateProject={() => void navigate("/projects")}
             />
           )}
 
-          {!showFullPageError && !isBrandNewOrg && (
+          {!showFullPageError && showDashboard && (
             <>
               {statsLoading ? (
                 <DashboardStatRowSkeleton />
@@ -243,7 +271,7 @@ export default function DashboardPage() {
                   <DashboardMainGridSkeleton />
                 ) : (
                   <DashboardMainGrid
-                    projects={snapshot.projects}
+                    projects={projects}
                     issues={activityIssues}
                     supplementalActivity={supplementalActivity}
                     mentions={snapshot.mentions}

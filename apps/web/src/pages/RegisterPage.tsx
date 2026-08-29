@@ -157,9 +157,12 @@ function RegisterForm() {
   const strength = useMemo(() => passwordStrength(password), [password]);
   const registerMutation = useMutation({
     mutationFn: registerUser,
-    onSuccess: () => {
-      toast.success("Your account was created successfully");
-      void navigate("/projects");
+    onSuccess: (_data, variables) => {
+      toast.success("Your account was created. Please sign in.");
+      void navigate("/login", {
+        replace: true,
+        state: { email: variables.email },
+      });
     },
     onError: (error) => {
       if (error instanceof ApiRequestError && error.fields) {

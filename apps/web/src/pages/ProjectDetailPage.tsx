@@ -12,12 +12,15 @@ import {
   Textarea,
 } from "@chakra-ui/react";
 import { OrganizationRole } from "@rivet/shared";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { Outlet, useMatch, useNavigate, useParams } from "react-router-dom";
 
+import { isSessionExpiredError } from "../auth-api";
 import { AppSidebar } from "../components/app/AppSidebar";
 import { useLogout } from "../components/app/use-logout";
+import { useActiveOrg } from "../components/billing/use-active-org";
 import { issueDetailPath } from "../components/issues/issue-detail-actions";
 import { IssueDetailProvider } from "../components/issues/issue-detail-context";
 import {
@@ -31,7 +34,6 @@ import {
   EMPTY_FILTERS,
   filterIssues,
   hasActiveFilters,
-  STATUS_OPTIONS,
 } from "../components/issues/issue-filters";
 import { canDeleteIssues } from "../components/issues/issue-permissions";
 import {
@@ -60,6 +62,7 @@ import {
   ProjectIssuesEmptyState,
 } from "../components/issues/IssuesPageStates";
 import { IssuesTableView } from "../components/issues/IssuesTableView";
+import { IssueStatusSelect } from "../components/issues/IssueStatusSelect";
 import {
   type IssuesViewMode,
   IssuesViewToggle,
@@ -69,7 +72,6 @@ import {
   MOCK_ISSUES,
   MOCK_TEAM_MEMBERS,
 } from "../components/issues/mock-issues-data";
-import { fetchProjectMock } from "../components/projects/mock-projects-data";
 import {
   canCreateProjectIssues,
   canManageProject,
@@ -87,7 +89,19 @@ import {
   ProjectLoadErrorState,
   ProjectNotFoundState,
 } from "../components/projects/ProjectPageStates";
+import {
+  isProjectNotFoundError,
+  type UpdateProjectInput,
+} from "../components/projects/projects-api";
+import { projectsQueryKeys } from "../components/projects/projects-query-keys";
 import { ProjectSettingsTab } from "../components/projects/ProjectSettingsTab";
+import {
+  useArchiveProjectMutation,
+  useDeleteProjectMutation,
+  useProject,
+  useUnarchiveProjectMutation,
+  useUpdateProjectMutation,
+} from "../components/projects/use-projects-queries";
 
 type ProjectLoadState = "loading" | "success" | "not_found" | "error";
 type IssuesLoadState = "loading" | "success" | "error";
@@ -269,19 +283,7 @@ function ProjectNewIssueDialog({
 
                 <Field.Root flex="1">
                   <Field.Label color="fg.primary">Status</Field.Label>
-                  <NativeSelect.Root size="sm">
-                    <NativeSelect.Field
-                      borderRadius="control"
-                      value={status}
-                      onChange={(e) => setStatus(e.target.value as IssueStatus)}
-                    >
-                      {STATUS_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </NativeSelect.Field>
-                  </NativeSelect.Root>
+                  <IssueStatusSelect value={status} onChange={setStatus} />
                 </Field.Root>
               </HStack>
             </Stack>
@@ -316,11 +318,32 @@ export default function ProjectDetailPage() {
   const issueId = issueMatch?.params.issueId;
   const navigate = useNavigate();
   const logout = useLogout();
+  const queryClient = useQueryClient();
+  const { orgId, orgsStatus } = useActiveOrg();
+  const projectQuery = useProject(orgId, projectId);
+  const project = projectQuery.data ?? null;
+  const archiveMutation = useArchiveProjectMutation(orgId);
+  const unarchiveMutation = useUnarchiveProjectMutation(orgId);
+  const updateMutation = useUpdateProjectMutation(orgId);
+  const deleteMutation = useDeleteProjectMutation(orgId);
+  const archivePending =
+    archiveMutation.isPending || unarchiveMutation.isPending;
+  const deletePending = deleteMutation.isPending;
 
-  const [project, setProject] = useState<Project | null>(null);
-  const [projectLoadState, setProjectLoadState] = useState<ProjectLoadState>(
-    () => (projectId ? "loading" : "not_found")
-  );
+  const projectLoadState: ProjectLoadState = !projectId
+    ? "not_found"
+    : orgsStatus === "loading" ||
+        (Boolean(orgId) && projectQuery.isPending && !project)
+      ? "loading"
+      : isProjectNotFoundError(projectQuery.error)
+        ? "not_found"
+        : projectQuery.isError
+          ? "error"
+          : project
+            ? "success"
+            : orgId
+              ? "loading"
+              : "error";
 
   const [issues, setIssues] = useState<Issue[]>([]);
   const [issuesLoadState, setIssuesLoadState] =
@@ -338,44 +361,18 @@ export default function ProjectDetailPage() {
   const canManage = canManageProject(MOCK_ROLE);
   const canDelete = canDeleteIssues(MOCK_ROLE);
 
-  // Reset load state when navigating between projects (render-phase, so the
-  // fetch effects below never need to set "loading" synchronously).
+  // Reset issue state when navigating between projects.
   const [trackedProjectId, setTrackedProjectId] = useState(projectId);
   if (trackedProjectId !== projectId) {
     setTrackedProjectId(projectId);
-    setProject(null);
-    setProjectLoadState(projectId ? "loading" : "not_found");
     setIssues([]);
     setIssuesLoadState("loading");
     setSelectedIds(new Set());
   }
 
-  const loadProject = useCallback(() => {
-    if (!projectId) return;
-    fetchProjectMock(projectId)
-      .then((result) => {
-        if (!result) {
-          setProject(null);
-          setProjectLoadState("not_found");
-          return;
-        }
-        setProject(result);
-        setProjectLoadState("success");
-      })
-      .catch(() => {
-        setProject(null);
-        setProjectLoadState("error");
-      });
-  }, [projectId]);
-
   const retryProject = () => {
-    setProjectLoadState("loading");
-    loadProject();
+    void projectQuery.refetch();
   };
-
-  useEffect(() => {
-    loadProject();
-  }, [loadProject]);
 
   // Guard the settings tab when the viewer can't manage the project.
   if (activeTab === "settings" && !canManage) {
@@ -540,7 +537,63 @@ export default function ProjectDetailPage() {
   };
 
   const handleProjectChange = (patch: Partial<Project>) => {
-    setProject((prev) => (prev ? { ...prev, ...patch } : prev));
+    if (!projectId) return;
+    queryClient.setQueryData<Project>(
+      projectsQueryKeys.detail(orgId, projectId),
+      (prev) => (prev ? { ...prev, ...patch } : prev)
+    );
+  };
+
+  const handleMutationError = (error: unknown, fallback: string) => {
+    if (isSessionExpiredError(error)) return;
+    toast.error(error instanceof Error ? error.message : fallback);
+  };
+
+  const handleUpdateProject = async (input: UpdateProjectInput) => {
+    if (!projectId) return;
+    try {
+      await updateMutation.mutateAsync({ projectId, ...input });
+    } catch (error) {
+      handleMutationError(error, "Couldn't update this project");
+      throw error;
+    }
+  };
+
+  const handleDeleteProject = async () => {
+    if (!projectId || deletePending) return;
+    try {
+      await deleteMutation.mutateAsync(projectId);
+      toast.success("Project deleted");
+      void navigate("/projects");
+    } catch (error) {
+      handleMutationError(error, "Couldn't delete this project");
+      throw error;
+    }
+  };
+
+  const handleArchiveProject = (navigateAway = false) => {
+    if (!projectId || archivePending) return;
+    archiveMutation.mutate(projectId, {
+      onSuccess: () => {
+        toast.success("Project archived");
+        if (navigateAway) {
+          void navigate("/projects");
+        }
+      },
+      onError: (error) =>
+        handleMutationError(error, "Couldn't archive project"),
+    });
+  };
+
+  const handleRestoreProject = () => {
+    if (!projectId || archivePending) return;
+    unarchiveMutation.mutate(projectId, {
+      onSuccess: () => {
+        toast.success("Project unarchived");
+      },
+      onError: (error) =>
+        handleMutationError(error, "Couldn't unarchive this project"),
+    });
   };
 
   const renderIssuesContent = () => {
@@ -627,16 +680,14 @@ export default function ProjectDetailPage() {
             role={MOCK_ROLE}
             teamMembers={MOCK_TEAM_MEMBERS}
             onProjectChange={handleProjectChange}
-            onArchive={() => {
-              handleProjectChange({ status: "archived" });
-              toast.success("Project archived");
-              void navigate("/projects");
-            }}
-            onDelete={() => {
-              toast.success("Project deleted");
-              void navigate("/projects");
-            }}
+            onArchive={() => handleArchiveProject(true)}
+            onRestore={handleRestoreProject}
+            onDelete={handleDeleteProject}
+            onUpdateProject={handleUpdateProject}
             onSwitchToIssues={() => setActiveTab("issues")}
+            archivePending={archivePending}
+            deletePending={deletePending}
+            updatePending={updateMutation.isPending}
           />
         </Box>
       );
@@ -731,10 +782,13 @@ export default function ProjectDetailPage() {
               canManage={canManage}
               onLogout={logout}
               onProjectChange={handleProjectChange}
+              onUpdateProject={handleUpdateProject}
               onNewIssue={() => openNewIssueDialog()}
-              onDeleteProject={() => {
-                /* mock: navigate away after delete */
-              }}
+              onDeleteProject={handleDeleteProject}
+              onArchive={() => handleArchiveProject()}
+              onRestore={handleRestoreProject}
+              archivePending={archivePending}
+              deletePending={deletePending}
             />
 
             <ProjectDetailTabs

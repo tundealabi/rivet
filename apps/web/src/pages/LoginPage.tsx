@@ -19,7 +19,12 @@ import toast from "react-hot-toast";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 import { MdEmail } from "react-icons/md";
 import { PiNutFill } from "react-icons/pi";
-import { Link as RouterLink, Navigate, useNavigate } from "react-router-dom";
+import {
+  Link as RouterLink,
+  Navigate,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 
 import registerImage from "../assets/register/register.png";
 import {
@@ -115,6 +120,11 @@ interface FormErrors {
   password?: string;
 }
 
+interface LoginLocationState {
+  email?: string;
+  from?: string;
+}
+
 export default function LoginPage() {
   if (isAuthenticated()) {
     return <Navigate to="/dashboard" replace />;
@@ -125,7 +135,9 @@ export default function LoginPage() {
 
 function LoginForm() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
+  const location = useLocation();
+  const registeredEmail = (location.state as LoginLocationState | null)?.email;
+  const [email, setEmail] = useState(registeredEmail ?? "");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
@@ -246,7 +258,9 @@ function LoginForm() {
             </Box>
           </Heading>
           <Text color="fg.secondary" fontSize="sm" mb="8">
-            Enter your details to access your workspace.
+            {registeredEmail
+              ? "Your account is ready. Sign in to access your workspace."
+              : "Enter your details to access your workspace."}
           </Text>
 
           <form onSubmit={handleSubmit} noValidate>

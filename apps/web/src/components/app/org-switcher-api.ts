@@ -1,5 +1,6 @@
 import { OrganizationRole } from "@rivet/shared";
 
+import { authFetch } from "../../auth-api";
 import {
   findOrganization as findMockOrganization,
   MOCK_USER_ORGANIZATIONS,
@@ -7,8 +8,12 @@ import {
 import type {
   CreateOrganizationInput,
   PendingOrgInvitation,
+  UserOrganization,
   UserOrganizationsPayload,
 } from "./org-switcher-types";
+
+const ORGANIZATIONS_URL =
+  "https://rivet-n8w6.onrender.com/api/v1/organizations";
 
 const LOAD_DELAY_MS = 420;
 const MOCK_MODE_KEY = "rivet_org_list_mock";
@@ -19,6 +24,57 @@ export class OrgListFetchError extends Error {
     super(message);
     this.name = "OrgListFetchError";
   }
+}
+
+interface OrganizationDto {
+  orgId: string;
+  orgName: string;
+  role: OrganizationRole;
+  memberCount: number;
+}
+
+interface ApiEnvelope<T> {
+  data: T | null;
+  error: { message: string } | null;
+}
+
+/** Fetches the authenticated user's organizations from the API. */
+export async function fetchUserOrganizations(): Promise<UserOrganizationsPayload> {
+  const response = await authFetch(ORGANIZATIONS_URL, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+  });
+
+  let payload: ApiEnvelope<OrganizationDto[]>;
+
+  try {
+    payload = (await response.json()) as ApiEnvelope<OrganizationDto[]>;
+  } catch {
+    throw new OrgListFetchError(
+      response.ok
+        ? "The server returned an invalid response"
+        : "Couldn't load organizations"
+    );
+  }
+
+  if (!response.ok || payload.error) {
+    throw new OrgListFetchError(
+      payload.error?.message ?? "Couldn't load organizations"
+    );
+  }
+
+  if (!payload.data) {
+    throw new OrgListFetchError("The server returned an invalid response");
+  }
+
+  const organizations: UserOrganization[] = payload.data.map((org) => ({
+    orgId: org.orgId,
+    orgName: org.orgName,
+    role: org.role,
+    initials: orgInitials(org.orgName),
+  }));
+
+  return { organizations, pendingInvitations: [] };
 }
 
 const SEED_PENDING_INVITATIONS: PendingOrgInvitation[] = [

@@ -50,11 +50,11 @@ export function ProjectDetailTabs({
             border="none"
             cursor="pointer"
             flexShrink="0"
-            color={active ? "fg.primary" : "fg.muted"}
+            color={active ? "accent.default" : "fg.muted"}
             fontWeight={active ? "semibold" : "medium"}
             fontSize="sm"
             transition={transition.base}
-            _hover={{ color: "fg.primary" }}
+            _hover={active ? undefined : { color: "fg.primary" }}
             _after={
               active
                 ? {

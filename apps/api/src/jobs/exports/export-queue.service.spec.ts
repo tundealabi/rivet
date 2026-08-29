@@ -214,7 +214,8 @@ describe("ExportQueueService against Redis", () => {
     );
 
     expect(succeeded?.status).toBe(ExportJobStatus.SUCCEEDED);
-    expect(succeeded?.objectKey).toBe(
+    const objectKey = succeeded?.objectKey;
+    expect(objectKey).toBe(
       exportObjectKey(organization.id, seeded.exportJobId)
     );
     expect(succeeded?.expiresAt).toBeInstanceOf(Date);
@@ -222,8 +223,12 @@ describe("ExportQueueService against Redis", () => {
     expect(ttlMs).toBeGreaterThan(EXPORT_OBJECT_TTL_MS - 60_000);
     expect(ttlMs).toBeLessThanOrEqual(EXPORT_OBJECT_TTL_MS);
 
+    if (!objectKey) {
+      throw new Error("expected export object key");
+    }
+
     const csv = await fetch(
-      await storage.signGet(succeeded!.objectKey!, {
+      await storage.signGet(objectKey, {
         contentDisposition: 'attachment; filename="export.csv"',
         expiresIn: 300,
       })

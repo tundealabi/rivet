@@ -3,11 +3,17 @@ const LOGIN_URL = "https://rivet-n8w6.onrender.com/api/v1/auth/login";
 const LOGOUT_URL = "https://rivet-n8w6.onrender.com/api/v1/auth/logout";
 const REFRESH_URL = "https://rivet-n8w6.onrender.com/api/v1/auth/refresh";
 
+/**
+ * Dual-token auth (ADR-0001):
+ * - Access JWT: short-lived, stored here, sent as `Authorization: Bearer`.
+ * - Refresh token: httpOnly cookie set by the API. Never read or stored in JS.
+ */
 const AUTH_STORAGE_KEYS = {
   accessToken: "rivet.accessToken",
-  refreshToken: "rivet.refreshToken",
   user: "rivet.user",
 } as const;
+
+const LEGACY_REFRESH_TOKEN_KEY = "rivet.refreshToken";
 
 export interface RegisterUserInput {
   email: string;
@@ -29,7 +35,6 @@ export interface LoginUserInput {
 export interface LoginUserResponse {
   authTokens: {
     accessToken: string;
-    refreshToken: string;
   };
   user: {
     email: string;
@@ -39,9 +44,14 @@ export interface LoginUserResponse {
 }
 
 export type AuthTokens = LoginUserResponse["authTokens"];
+export type AuthUser = LoginUserResponse["user"];
 
 export interface RefreshAuthResponse {
   authTokens: AuthTokens;
+}
+
+function dropLegacyRefreshToken() {
+  localStorage.removeItem(LEGACY_REFRESH_TOKEN_KEY);
 }
 
 export function saveAuthSession(
@@ -49,21 +59,38 @@ export function saveAuthSession(
   user: LoginUserResponse["user"]
 ) {
   localStorage.setItem(AUTH_STORAGE_KEYS.accessToken, authTokens.accessToken);
-  localStorage.setItem(AUTH_STORAGE_KEYS.refreshToken, authTokens.refreshToken);
   localStorage.setItem(AUTH_STORAGE_KEYS.user, JSON.stringify(user));
+  dropLegacyRefreshToken();
 }
 
 export function updateStoredAuthTokens(authTokens: AuthTokens) {
   localStorage.setItem(AUTH_STORAGE_KEYS.accessToken, authTokens.accessToken);
-  localStorage.setItem(AUTH_STORAGE_KEYS.refreshToken, authTokens.refreshToken);
+  dropLegacyRefreshToken();
 }
 
 export function clearAuthSession() {
   localStorage.removeItem(AUTH_STORAGE_KEYS.accessToken);
-  localStorage.removeItem(AUTH_STORAGE_KEYS.refreshToken);
   localStorage.removeItem(AUTH_STORAGE_KEYS.user);
+  dropLegacyRefreshToken();
 }
 
+export function getStoredUser(): AuthUser | null {
+  const raw = localStorage.getItem(AUTH_STORAGE_KEYS.user);
+  if (!raw) return null;
+
+  try {
+    const user = JSON.parse(raw) as AuthUser;
+    if (!user?.email || !user.firstName) return null;
+    return user;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Presence of an access token means we have a local session to try.
+ * Expiry is not logout — the httpOnly refresh cookie is the session.
+ */
 export function isAuthenticated(): boolean {
   return Boolean(localStorage.getItem(AUTH_STORAGE_KEYS.accessToken));
 }
@@ -114,18 +141,9 @@ export async function refreshAuthTokens(): Promise<AuthTokens> {
   }
 
   refreshPromise = (async () => {
-    const refreshToken = localStorage.getItem(AUTH_STORAGE_KEYS.refreshToken);
-
-    if (!refreshToken) {
-      throw new ApiRequestError(SESSION_EXPIRED_MESSAGE);
-    }
-
     const response = await fetch(REFRESH_URL, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ refreshToken }),
+      credentials: "include",
     });
 
     let payload: ApiResponse<RefreshAuthResponse>;
@@ -146,12 +164,14 @@ export async function refreshAuthTokens(): Promise<AuthTokens> {
       );
     }
 
-    if (!payload.data?.authTokens) {
+    const authTokens = payload.data?.authTokens;
+
+    if (!authTokens?.accessToken) {
       throw new ApiRequestError("The server returned an invalid response");
     }
 
-    updateStoredAuthTokens(payload.data.authTokens);
-    return payload.data.authTokens;
+    updateStoredAuthTokens(authTokens);
+    return authTokens;
   })();
 
   try {
@@ -198,25 +218,16 @@ export async function authFetch(
 }
 
 /**
- * Invalidates the session on the server, then clears local storage.
- * The server call is best-effort: local logout always succeeds even
- * if the request fails (e.g. offline or expired token).
+ * Revokes the server session via the refresh cookie, then clears local storage.
+ * Always attempted: logout is cookie-authenticated, not Bearer-authenticated.
+ * Local logout still succeeds if the request fails (offline, already expired).
  */
 export async function logoutUser(): Promise<void> {
-  const accessToken = localStorage.getItem(AUTH_STORAGE_KEYS.accessToken);
-  const refreshToken = localStorage.getItem(AUTH_STORAGE_KEYS.refreshToken);
-
   try {
-    if (accessToken) {
-      await fetch(LOGOUT_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ refreshToken }),
-      });
-    }
+    await fetch(LOGOUT_URL, {
+      method: "POST",
+      credentials: "include",
+    });
   } catch {
     // Ignore network errors — the local session is cleared regardless.
   } finally {
@@ -267,6 +278,7 @@ export async function loginUser(
 ): Promise<LoginUserResponse> {
   const response = await fetch(LOGIN_URL, {
     method: "POST",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
     },
@@ -292,7 +304,7 @@ export async function loginUser(
     );
   }
 
-  if (!payload.data) {
+  if (!payload.data?.authTokens?.accessToken || !payload.data.user) {
     throw new ApiRequestError("The server returned an invalid response");
   }
 

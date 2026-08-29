@@ -1,8 +1,16 @@
-import { Box, Button, Flex, Heading, Skeleton, Text } from "@chakra-ui/react";
+import {
+  Box,
+  Button,
+  Flex,
+  Heading,
+  SimpleGrid,
+  Skeleton,
+  Text,
+} from "@chakra-ui/react";
 import { PiWarningCircle } from "react-icons/pi";
 import { Link as RouterLink } from "react-router-dom";
 
-import { scaleIn } from "../issues/issues-motion";
+import { fadeInUp, scaleIn } from "../issues/issues-motion";
 import { IssuesTableSkeleton } from "../issues/IssuesPageStates";
 
 const shimmerStyle = {
@@ -195,6 +203,85 @@ export function ProjectNotFoundState() {
         _hover={{ bg: "accent.hover" }}
       >
         <RouterLink to="/projects">Back to projects</RouterLink>
+      </Button>
+    </Flex>
+  );
+}
+
+export function ProjectsListSkeleton({ count = 6 }: { count?: number }) {
+  return (
+    <SimpleGrid columns={{ base: 1, md: 2, xl: 3 }} gap="5" {...fadeInUp}>
+      {Array.from({ length: count }).map((_, index) => (
+        <Box
+          key={index}
+          bg="bg.surface"
+          borderWidth="1px"
+          borderColor="border.default"
+          borderRadius="card"
+          p="5"
+          boxShadow="subtle"
+        >
+          <Flex gap="3" mb="4" align="center">
+            <Skeleton boxSize="11" borderRadius="control" css={shimmerStyle} />
+            <Box flex="1" minW="0">
+              <Skeleton h="4" w="36" maxW="full" mb="2" css={shimmerStyle} />
+              <Skeleton h="5" w="12" borderRadius="badge" css={shimmerStyle} />
+            </Box>
+          </Flex>
+          <Skeleton h="3" w="full" mb="2" css={shimmerStyle} />
+          <Skeleton h="3" w="40" css={shimmerStyle} />
+          <Flex
+            mt="4"
+            pt="4"
+            borderTopWidth="1px"
+            borderColor="border.divider"
+            justify="space-between"
+          >
+            <Skeleton h="3" w="24" css={shimmerStyle} />
+            <Skeleton h="3" w="16" css={shimmerStyle} />
+          </Flex>
+        </Box>
+      ))}
+    </SimpleGrid>
+  );
+}
+
+export function ProjectsListErrorState({ onRetry }: { onRetry: () => void }) {
+  return (
+    <Flex
+      direction="column"
+      align="center"
+      justify="center"
+      textAlign="center"
+      py="20"
+      px="6"
+      {...scaleIn}
+    >
+      <Flex
+        boxSize="14"
+        align="center"
+        justify="center"
+        borderRadius="full"
+        bg="danger.ghostHover"
+        color="status.error"
+        mb="4"
+      >
+        <PiWarningCircle size={28} />
+      </Flex>
+      <Heading size="md" color="fg.primary" mb="2">
+        Couldn&apos;t load projects
+      </Heading>
+      <Text fontSize="sm" color="fg.secondary" maxW="sm" mb="6">
+        Something went wrong while fetching your projects. Please try again.
+      </Text>
+      <Button
+        borderRadius="control"
+        bg="accent.default"
+        color="white"
+        _hover={{ bg: "accent.hover" }}
+        onClick={onRetry}
+      >
+        Retry
       </Button>
     </Flex>
   );

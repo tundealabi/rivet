@@ -47,7 +47,7 @@ rivet/
 ## Getting started
 
 ```bash
-pnpm install
+pnpm install      # also generates the Prisma client (gitignored)
 pnpm docker:up    # Postgres, Redis, MinIO, Prometheus, Grafana, Tempo
 
 # After apps exist:
@@ -64,18 +64,19 @@ pnpm dev:web      # http://localhost:5173
 
 ## Scripts
 
-| Command            | Description                                              |
-| ------------------ | -------------------------------------------------------- |
-| `pnpm install`     | Install workspace dependencies                           |
-| `pnpm dev`         | Build shared + run apps in parallel                      |
-| `pnpm dev:api`     | API only                                                 |
-| `pnpm dev:web`     | Web only                                                 |
-| `pnpm build`       | Build all packages                                       |
-| `pnpm typecheck`   | Typecheck all packages                                   |
-| `pnpm lint`        | ESLint                                                   |
-| `pnpm format`      | Prettier                                                 |
-| `pnpm docker:up`   | Start Postgres, Redis, MinIO, Prometheus, Grafana, Tempo |
-| `pnpm docker:down` | Stop containers                                          |
+| Command                | Description                                               |
+| ---------------------- | --------------------------------------------------------- |
+| `pnpm install`         | Install workspace dependencies and generate Prisma client |
+| `pnpm prisma:generate` | Regenerate Prisma client (after schema changes)           |
+| `pnpm dev`             | Build shared + run apps in parallel                       |
+| `pnpm dev:api`         | API only                                                  |
+| `pnpm dev:web`         | Web only                                                  |
+| `pnpm build`           | Build all packages                                        |
+| `pnpm typecheck`       | Typecheck all packages                                    |
+| `pnpm lint`            | ESLint                                                    |
+| `pnpm format`          | Prettier                                                  |
+| `pnpm docker:up`       | Start Postgres, Redis, MinIO, Prometheus, Grafana, Tempo  |
+| `pnpm docker:down`     | Stop containers                                           |
 
 CI runs on pull requests and pushes to `main` (`.github/workflows/ci.yml`): lint, typecheck, unit tests, build, and API e2e against Compose Postgres/Redis/MinIO.
 

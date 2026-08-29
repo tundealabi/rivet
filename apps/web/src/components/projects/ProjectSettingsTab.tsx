@@ -17,10 +17,12 @@ import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { PiLock, PiUsers } from "react-icons/pi";
 
+import { isSessionExpiredError } from "../../auth-api";
 import type { TeamMember } from "../issues/issue-types";
 import { EASE_OUT } from "../issues/issues-motion";
 import { canDeleteProject, canManageProject } from "./project-permissions";
 import type { Project, ProjectVisibility } from "./project-types";
+import type { UpdateProjectInput } from "./projects-api";
 
 function SettingsSection({
   title,
@@ -179,7 +181,7 @@ interface DeleteConfirmDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectName: string;
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
 }
 
 function DeleteConfirmDialog({
@@ -189,11 +191,15 @@ function DeleteConfirmDialog({
   onConfirm,
 }: DeleteConfirmDialogProps) {
   const [confirmName, setConfirmName] = useState("");
+  const [pending, setPending] = useState(false);
 
   const [prevOpen, setPrevOpen] = useState(open);
   if (prevOpen !== open) {
     setPrevOpen(open);
-    if (!open) setConfirmName("");
+    if (!open) {
+      setConfirmName("");
+      setPending(false);
+    }
   }
 
   const matches = confirmName.trim() === projectName;
@@ -256,10 +262,18 @@ function DeleteConfirmDialog({
               bg="status.error"
               color="white"
               _hover={{ bg: "red.600" }}
-              disabled={!matches}
+              disabled={!matches || pending}
+              loading={pending}
               onClick={() => {
-                onConfirm();
-                onOpenChange(false);
+                void (async () => {
+                  setPending(true);
+                  try {
+                    await onConfirm();
+                    onOpenChange(false);
+                  } catch {
+                    setPending(false);
+                  }
+                })();
               }}
             >
               Delete project
@@ -277,8 +291,13 @@ interface ProjectSettingsTabProps {
   teamMembers: TeamMember[];
   onProjectChange: (patch: Partial<Project>) => void;
   onArchive: () => void;
-  onDelete: () => void;
+  onRestore: () => void;
+  onDelete: () => void | Promise<void>;
+  onUpdateProject: (input: UpdateProjectInput) => Promise<void>;
   onSwitchToIssues: () => void;
+  archivePending?: boolean;
+  deletePending?: boolean;
+  updatePending?: boolean;
 }
 
 export function ProjectSettingsTab({
@@ -287,8 +306,13 @@ export function ProjectSettingsTab({
   teamMembers,
   onProjectChange,
   onArchive,
+  onRestore,
   onDelete,
+  onUpdateProject,
   onSwitchToIssues,
+  archivePending = false,
+  deletePending = false,
+  updatePending = false,
 }: ProjectSettingsTabProps) {
   const [name, setName] = useState(project.name);
   const [key, setKey] = useState(project.key);
@@ -341,12 +365,27 @@ export function ProjectSettingsTab({
       toast.error("Project name is required");
       return;
     }
-    onProjectChange({
-      name: name.trim(),
-      key: key.trim().toUpperCase() || project.key,
-      description: description.trim(),
-    });
-    toast.success("Project settings saved");
+
+    const input: UpdateProjectInput = {};
+    if (name.trim() !== project.name) {
+      input.name = name.trim();
+    }
+    if (description.trim() !== project.description) {
+      input.description = description.trim();
+    }
+
+    if (input.name === undefined && input.description === undefined) {
+      if (keyChanged) {
+        toast.error("Project key can't be changed");
+      }
+      return;
+    }
+
+    void onUpdateProject(input)
+      .then(() => toast.success("Project settings saved"))
+      .catch((error) => {
+        if (isSessionExpiredError(error)) return;
+      });
   };
 
   const handleVisibilityChange = (visibility: ProjectVisibility) => {
@@ -425,7 +464,8 @@ export function ProjectSettingsTab({
               color="white"
               fontWeight="semibold"
               _hover={{ bg: "accent.hover" }}
-              disabled={!isDirty}
+              disabled={!isDirty || updatePending}
+              loading={updatePending}
               onClick={handleSaveGeneral}
             >
               Save changes
@@ -560,10 +600,14 @@ export function ProjectSettingsTab({
           >
             <Box flex="1">
               <Text fontSize="sm" fontWeight="medium" color="fg.primary" mb="1">
-                Archive project
+                {project.status === "archived"
+                  ? "Unarchive project"
+                  : "Archive project"}
               </Text>
               <Text fontSize="sm" color="fg.secondary" lineHeight="1.5">
-                Archived projects are hidden but not deleted.
+                {project.status === "archived"
+                  ? "Bring this project back to the active list."
+                  : "Archived projects are hidden but not deleted."}
               </Text>
             </Box>
             <Button
@@ -573,12 +617,22 @@ export function ProjectSettingsTab({
               color="fg.primary"
               fontWeight="medium"
               flexShrink="0"
-              disabled={project.status === "archived"}
-              onClick={() => setArchiveOpen(true)}
+              disabled={archivePending}
+              onClick={() => {
+                if (project.status === "archived") {
+                  onRestore();
+                  return;
+                }
+                setArchiveOpen(true);
+              }}
             >
-              {project.status === "archived"
-                ? "Already archived"
-                : "Archive project"}
+              {archivePending
+                ? project.status === "archived"
+                  ? "Unarchiving…"
+                  : "Archiving…"
+                : project.status === "archived"
+                  ? "Unarchive project"
+                  : "Archive project"}
             </Button>
           </Flex>
 
@@ -612,6 +666,7 @@ export function ProjectSettingsTab({
                   fontWeight="medium"
                   flexShrink="0"
                   _hover={{ bg: "red.600" }}
+                  disabled={deletePending}
                   onClick={() => setDeleteOpen(true)}
                 >
                   Delete project

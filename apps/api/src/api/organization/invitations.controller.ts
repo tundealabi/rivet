@@ -4,7 +4,6 @@ import {
   Get,
   HttpStatus,
   Param,
-  ParseUUIDPipe,
   Post,
   Query,
 } from "@nestjs/common";
@@ -14,6 +13,7 @@ import {
   ApiPublic,
   ApiRequestUser,
 } from "@/common/decorators";
+import { ParseUuidPipe } from "@/common/pipes";
 import { AuthJwtUser } from "@/modules/auth/auth.entities";
 
 import {
@@ -135,7 +135,7 @@ export class InvitationsController {
   })
   acceptInvitationById(
     @ApiRequestUser() user: AuthJwtUser,
-    @Param("id", ParseUUIDPipe) id: string
+    @Param("id", ParseUuidPipe) id: string
   ) {
     return this.service.acceptInvitation({
       id,
@@ -163,7 +163,7 @@ export class InvitationsController {
   })
   declineInvitation(
     @ApiRequestUser() user: AuthJwtUser,
-    @Param("id", ParseUUIDPipe) id: string
+    @Param("id", ParseUuidPipe) id: string
   ) {
     return this.service.declineInvitation({
       id,

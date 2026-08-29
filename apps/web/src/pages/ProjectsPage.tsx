@@ -13,7 +13,6 @@ import {
   Text,
   Textarea,
 } from "@chakra-ui/react";
-import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import toast from "react-hot-toast";
 import {
@@ -31,21 +30,20 @@ import { useLogout } from "../components/app/use-logout";
 import { SitewidePaymentWarning } from "../components/billing/SitewidePaymentWarning";
 import { useActiveOrg } from "../components/billing/use-active-org";
 import { useBillingSummary } from "../components/billing/use-billing-queries";
-import { MOCK_PROJECTS as SEED_PROJECTS } from "../components/projects/mock-projects-data";
+import { EASE_OUT, transition } from "../components/issues/issues-motion";
 import type { Project } from "../components/projects/project-types";
 import {
-  createProject,
+  ProjectsListErrorState,
+  ProjectsListSkeleton,
+} from "../components/projects/ProjectPageStates";
+import {
   CreateProjectError,
+  PROJECT_COLORS,
 } from "../components/projects/projects-api";
-
-const PROJECT_COLORS = [
-  "#4F46E5",
-  "#0891B2",
-  "#DB2777",
-  "#D97706",
-  "#16A34A",
-  "#7C3AED",
-];
+import {
+  useCreateProjectMutation,
+  useProjectsList,
+} from "../components/projects/use-projects-queries";
 
 /** Free plan project cap — used for upgrade nudge on the list page. */
 // const FREE_PLAN_PROJECT_LIMIT = 3;
@@ -111,15 +109,21 @@ function ProjectCard({
           <Text fontWeight="semibold" color="fg.primary" truncate>
             {project.name}
           </Text>
-          <Badge
-            size="sm"
-            variant="subtle"
-            colorPalette="gray"
-            fontFamily="mono"
-            mt="0.5"
-          >
-            {project.key}
-          </Badge>
+          <HStack gap="1" mt="0.5" flexWrap="wrap">
+            <Badge
+              size="sm"
+              variant="subtle"
+              colorPalette="gray"
+              fontFamily="mono"
+            >
+              {project.key}
+            </Badge>
+            {project.status === "archived" && (
+              <Badge size="sm" variant="subtle" colorPalette="gray">
+                Archived
+              </Badge>
+            )}
+          </HStack>
         </Box>
       </HStack>
 
@@ -155,7 +159,13 @@ function ProjectCard({
   );
 }
 
-function EmptyState({ onCreate }: { onCreate: () => void }) {
+function EmptyState({
+  archived,
+  onCreate,
+}: {
+  archived: boolean;
+  onCreate: () => void;
+}) {
   return (
     <Flex
       direction="column"
@@ -182,31 +192,102 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
         <PiFolderOpenDuotone size={40} />
       </Flex>
       <Heading size="lg" color="fg.primary" mb="2">
-        Create your first project
+        {archived ? "No archived projects" : "Create your first project"}
       </Heading>
-      <Text fontSize="sm" color="fg.secondary" maxW="sm" mb="8">
-        Projects keep your team's issues organized. Create one to start tracking
-        work, assigning teammates, and shipping faster.
-      </Text>
-      <Button
-        size="lg"
-        borderRadius="full"
-        bg="accent.default"
-        color="white"
-        fontWeight="semibold"
-        _hover={{ bg: "accent.hover" }}
-        onClick={onCreate}
+      <Text
+        fontSize="sm"
+        color="fg.secondary"
+        maxW="sm"
+        mb={archived ? "0" : "8"}
       >
-        <PiPlusBold /> Create project
-      </Button>
+        {archived
+          ? "Archived projects are hidden from the active list but not deleted."
+          : "Projects keep your team's issues organized. Create one to start tracking work, assigning teammates, and shipping faster."}
+      </Text>
+      {!archived && (
+        <Button
+          size="lg"
+          borderRadius="full"
+          bg="accent.default"
+          color="white"
+          fontWeight="semibold"
+          _hover={{ bg: "accent.hover" }}
+          onClick={onCreate}
+        >
+          <PiPlusBold /> Create project
+        </Button>
+      )}
     </Flex>
+  );
+}
+
+function ProjectsArchivedToggle({
+  archived,
+  onChange,
+}: {
+  archived: boolean;
+  onChange: (archived: boolean) => void;
+}) {
+  const modes = [
+    { archived: false, label: "Active" },
+    { archived: true, label: "Archived" },
+  ] as const;
+
+  return (
+    <Box
+      position="relative"
+      display="inline-flex"
+      p="0.5"
+      bg="bg.surfaceHover"
+      borderRadius="control"
+      borderWidth="1px"
+      borderColor="border.default"
+      flexShrink="0"
+    >
+      <Box
+        position="absolute"
+        top="2px"
+        bottom="2px"
+        left={archived ? "calc(50% + 1px)" : "2px"}
+        w="calc(50% - 3px)"
+        bg="bg.surface"
+        borderRadius="calc(var(--chakra-radii-control) - 2px)"
+        boxShadow="subtle"
+        transition={`left 0.28s ${EASE_OUT}, box-shadow 0.28s ${EASE_OUT}`}
+        pointerEvents="none"
+      />
+      {modes.map((mode) => {
+        const active = archived === mode.archived;
+        return (
+          <Button
+            key={mode.label}
+            size="sm"
+            variant="ghost"
+            position="relative"
+            zIndex="1"
+            borderRadius="control"
+            px="3.5"
+            minW="auto"
+            h="8"
+            bg="transparent"
+            color={active ? "fg.primary" : "fg.muted"}
+            fontWeight={active ? "semibold" : "medium"}
+            transition={transition.base}
+            _hover={{ bg: "transparent", color: "fg.primary" }}
+            onClick={() => onChange(mode.archived)}
+            aria-pressed={active}
+          >
+            {mode.label}
+          </Button>
+        );
+      })}
+    </Box>
   );
 }
 
 interface CreateProjectDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreate: (project: Project) => void;
   nextColorIndex: number;
   orgId: string;
 }
@@ -214,7 +295,6 @@ interface CreateProjectDialogProps {
 function CreateProjectDialog({
   open,
   onOpenChange,
-  onCreate,
   nextColorIndex,
   orgId,
 }: CreateProjectDialogProps) {
@@ -232,34 +312,13 @@ function CreateProjectDialog({
     setNameError("");
   };
 
-  const createMutation = useMutation({
-    mutationFn: () =>
-      createProject(
-        orgId,
-        {
-          name: name.trim(),
-          description: description.trim(),
-        },
-        {
-          key: key.trim() || keyFromName(name),
-          color: PROJECT_COLORS[nextColorIndex % PROJECT_COLORS.length],
-        }
-      ),
-    onSuccess: (project) => {
-      onCreate(project);
-      reset();
-      onOpenChange(false);
-      toast.success("Project created");
-    },
-    onError: (error) => {
-      if (isSessionExpiredError(error)) return;
-      toast.error(
-        error instanceof CreateProjectError
-          ? error.message
-          : "Unable to create project"
-      );
-    },
-  });
+  const createMutation = useCreateProjectMutation(orgId);
+
+  const handleCreated = () => {
+    reset();
+    onOpenChange(false);
+    toast.success("Project created");
+  };
 
   const handleNameChange = (value: string) => {
     setName(value);
@@ -272,7 +331,29 @@ function CreateProjectDialog({
       setNameError("Please enter a project name");
       return;
     }
-    createMutation.mutate();
+    createMutation.mutate(
+      {
+        input: {
+          name: name.trim(),
+          description: description.trim(),
+        },
+        extras: {
+          key: key.trim() || keyFromName(name),
+          color: PROJECT_COLORS[nextColorIndex % PROJECT_COLORS.length],
+        },
+      },
+      {
+        onSuccess: handleCreated,
+        onError: (error) => {
+          if (isSessionExpiredError(error)) return;
+          toast.error(
+            error instanceof CreateProjectError
+              ? error.message
+              : "Unable to create project"
+          );
+        },
+      }
+    );
   };
 
   return (
@@ -372,16 +453,36 @@ function CreateProjectDialog({
 }
 
 export default function ProjectsPage() {
-  const [projects, setProjects] = useState<Project[]>(() =>
-    SEED_PROJECTS.filter((project) => project.status === "active")
-  );
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [archived, setArchived] = useState(false);
   const logout = useLogout();
   const navigate = useNavigate();
-  const { orgId } = useActiveOrg();
+  const { orgId, orgName, orgsStatus } = useActiveOrg();
   const billingQuery = useBillingSummary(orgId);
   const paymentPastDue = billingQuery.data?.subscription.pastDue === true;
+  const projectsQuery = useProjectsList(orgId, archived);
+  const projects = projectsQuery.data ?? [];
+  const isLoading =
+    orgsStatus === "loading" ||
+    (Boolean(orgId) && projectsQuery.isPending && !projectsQuery.data);
+  const isError =
+    Boolean(orgId) && projectsQuery.isError && !projectsQuery.data;
   // const atProjectLimit = projects.length >= FREE_PLAN_PROJECT_LIMIT;
+
+  const listLabel = archived ? "archived project" : "project";
+  const subtitle = isLoading
+    ? archived
+      ? "Loading archived projects…"
+      : "Loading projects…"
+    : isError
+      ? archived
+        ? "Couldn't load archived projects"
+        : "Couldn't load projects"
+      : projects.length === 0
+        ? archived
+          ? "No archived projects"
+          : "No projects yet"
+        : `${projects.length} ${listLabel}${projects.length > 1 ? "s" : ""} in ${orgName}`;
 
   const handleNewProjectClick = () => {
     // if (atProjectLimit) {
@@ -418,12 +519,10 @@ export default function ProjectsPage() {
               Projects
             </Heading>
             <Text fontSize="sm" color="fg.secondary" mt="0.5">
-              {projects.length === 0
-                ? "No projects yet"
-                : `${projects.length} project${projects.length > 1 ? "s" : ""} in Acme Inc.`}
+              {subtitle}
             </Text>
           </Box>
-          <HStack gap="3">
+          <HStack gap="3" flexWrap="wrap" justify="flex-end">
             <Button
               variant="outline"
               size="sm"
@@ -442,7 +541,11 @@ export default function ProjectsPage() {
               <PiSignOut size={16} />
               Log out
             </Button>
-            {projects.length > 0 && (
+            <ProjectsArchivedToggle
+              archived={archived}
+              onChange={setArchived}
+            />
+            {!archived && !isLoading && !isError && projects.length > 0 && (
               <Box textAlign={{ base: "left", md: "right" }}>
                 <Button
                   borderRadius="full"
@@ -482,8 +585,14 @@ export default function ProjectsPage() {
 
         {/* Content */}
         <Box px={{ base: "5", md: "10" }} py="8">
-          {projects.length === 0 ? (
-            <EmptyState onCreate={handleNewProjectClick} />
+          {isLoading ? (
+            <ProjectsListSkeleton />
+          ) : isError ? (
+            <ProjectsListErrorState
+              onRetry={() => void projectsQuery.refetch()}
+            />
+          ) : projects.length === 0 ? (
+            <EmptyState archived={archived} onCreate={handleNewProjectClick} />
           ) : (
             <SimpleGrid columns={{ base: 1, md: 2, xl: 3 }} gap="5">
               {projects.map((project) => (
@@ -501,7 +610,6 @@ export default function ProjectsPage() {
       <CreateProjectDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        onCreate={(project) => setProjects((prev) => [...prev, project])}
         nextColorIndex={projects.length}
         orgId={orgId}
       />

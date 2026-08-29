@@ -7,6 +7,7 @@ import { useNavigate, useParams } from "react-router-dom";
 
 import { AppSidebar } from "../components/app/AppSidebar";
 import { useLogout } from "../components/app/use-logout";
+import { useActiveOrg } from "../components/billing/use-active-org";
 import { issueDetailPath } from "../components/issues/issue-detail-actions";
 import {
   applyIssueActivityAdd,
@@ -30,8 +31,9 @@ import {
   MOCK_ISSUES,
   MOCK_TEAM_MEMBERS,
 } from "../components/issues/mock-issues-data";
-import { fetchProjectMock } from "../components/projects/mock-projects-data";
 import { ProjectNotFoundState } from "../components/projects/ProjectPageStates";
+import { isProjectNotFoundError } from "../components/projects/projects-api";
+import { useProject } from "../components/projects/use-projects-queries";
 
 const MOCK_ROLE = OrganizationRole.MEMBER;
 
@@ -42,6 +44,8 @@ export default function IssueDetailPage() {
   }>();
   const navigate = useNavigate();
   const logout = useLogout();
+  const { orgId } = useActiveOrg();
+  const projectQuery = useProject(orgId, projectId);
 
   const [issue, setIssue] = useState<Issue | null>(null);
   const [loadState, setLoadState] = useState<
@@ -69,22 +73,22 @@ export default function IssueDetailPage() {
     setLoadState("loading");
   }
 
-  const effectiveLoadState = !projectId || !issueId ? "not_found" : loadState;
+  const projectMissing =
+    !projectQuery.isPending &&
+    (isProjectNotFoundError(projectQuery.error) || !projectQuery.data);
+  const effectiveLoadState =
+    !projectId || !issueId || projectMissing ? "not_found" : loadState;
 
   useEffect(() => {
     if (!projectId || !issueId) return;
+    if (projectQuery.isPending) return;
+    if (isProjectNotFoundError(projectQuery.error) || !projectQuery.data) {
+      return;
+    }
 
     let cancelled = false;
 
     const load = async () => {
-      const project = await fetchProjectMock(projectId);
-      if (cancelled) return;
-      if (!project) {
-        setIssue(null);
-        setLoadState("not_found");
-        return;
-      }
-
       const issues = await fetchIssuesMock(MOCK_ISSUES);
       if (cancelled) return;
       const match = issues.find(
@@ -112,7 +116,13 @@ export default function IssueDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [projectId, issueId]);
+  }, [
+    projectId,
+    issueId,
+    projectQuery.isPending,
+    projectQuery.data,
+    projectQuery.error,
+  ]);
 
   const handleUpdate = (id: string, patch: Partial<Issue>) => {
     setIssue((prev) => (prev && prev.id === id ? { ...prev, ...patch } : prev));

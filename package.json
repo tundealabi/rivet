@@ -14,7 +14,8 @@
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
-    "prepare": "husky"
+    "prepare": "husky",
+    "prisma:generate": "pnpm --filter @rivet/api prisma:generate"
   },
   "engines": {
     "node": ">=20"
