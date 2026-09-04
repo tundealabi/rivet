@@ -1,3 +1,6 @@
+echo "🗄️ Generating Prisma client..."
+pnpm prisma:generate
+
 echo "🏗️👷‍♂️ Formatting code with Prettier..."
 pnpm format
 

@@ -13,6 +13,7 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "lint": "eslint .",
+    "postinstall": "pnpm prisma:generate",
     "prisma:dev": "dotenv -e ./src/config/envs/.env.development -- pnpm exec prisma",
     "prisma:generate": "pnpm exec prisma generate",
     "typecheck": "tsc -p tsconfig.json --noEmit",
