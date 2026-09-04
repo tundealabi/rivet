@@ -12,16 +12,18 @@ import { useCallback, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { PiChatCircleDots, PiPlus } from "react-icons/pi";
 
+import { useActiveOrg } from "../billing/use-active-org";
 import { STATUS_OPTIONS } from "./issue-filters";
 import { type Issue, PRIORITY_DOT_COLOR } from "./issue-types";
 import type { IssueFilters, IssueStatus } from "./IssueFilterBar";
-import { updateIssueStatusApi } from "./issues-api";
+import { IssueConflictError, issueFieldsFromUpdate } from "./issues-api";
 import {
   EASE_OUT,
   interactiveCard,
   stagger,
   transition,
 } from "./issues-motion";
+import { useUpdateIssueMutation } from "./use-issues-queries";
 
 const BOARD_STATUSES = STATUS_OPTIONS.filter((s) => s.value !== "cancelled");
 
@@ -344,6 +346,8 @@ export function IssuesBoardView({
   projectId,
   hideProjectBadge = false,
 }: IssuesBoardViewProps) {
+  const { orgId } = useActiveOrg();
+  const updateMutation = useUpdateIssueMutation(orgId);
   const [allowCrossProject, setAllowCrossProject] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<IssueStatus | null>(
@@ -369,18 +373,26 @@ export function IssuesBoardView({
       onIssueUpdate(issueId, { status: newStatus, updatedAt: new Date() });
 
       try {
-        await updateIssueStatusApi(issueId, newStatus);
-      } catch {
+        const updated = await updateMutation.mutateAsync({
+          issueId,
+          input: { expectedStatus: previousStatus, status: newStatus },
+        });
+        onIssueUpdate(issueId, issueFieldsFromUpdate(updated));
+      } catch (error) {
         onIssueUpdate(issueId, {
           status: previousStatus,
           updatedAt: previousUpdatedAt,
         });
-        toast.error("Couldn't update status — changes reverted");
+        toast.error(
+          error instanceof IssueConflictError
+            ? error.message
+            : "Couldn't update status — changes reverted"
+        );
       } finally {
         pendingUpdates.current.delete(issueId);
       }
     },
-    [issues, onIssueUpdate]
+    [issues, onIssueUpdate, updateMutation]
   );
 
   if (!boardVisible) {

@@ -1,8 +1,4 @@
-import type {
-  IssueFilters,
-  IssuePriority,
-  IssueStatus,
-} from "./IssueFilterBar";
+import type { IssueFilters, IssuePriority, IssueStatus } from "./issue-types";
 
 export const EMPTY_FILTERS: IssueFilters = {
   search: "",

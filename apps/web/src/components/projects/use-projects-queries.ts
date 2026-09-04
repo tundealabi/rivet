@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type UseQueryResult,
+} from "@tanstack/react-query";
 
 import type { Project } from "./project-types";
 import {
@@ -34,7 +39,10 @@ export function useProjectsList(orgId: string, archived = false) {
   });
 }
 
-export function useProject(orgId: string, projectId: string | undefined) {
+export function useProject(
+  orgId: string,
+  projectId: string | undefined
+): UseQueryResult<Project> {
   return useQuery({
     queryKey: projectsQueryKeys.detail(orgId, projectId ?? ""),
     queryFn: () => fetchProject(orgId, projectId ?? ""),

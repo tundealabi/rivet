@@ -20,7 +20,7 @@ interface IssueDetailDrawerProps {
   onEditComment: (issueId: string, commentId: string, body: string) => void;
   onDeleteComment: (issueId: string, commentId: string) => void;
   onToggleReaction: (issueId: string, commentId: string, emoji: string) => void;
-  onDelete: (id: string) => void;
+  onDelete: (id: string) => void | Promise<void>;
   navigableIssueIds?: string[];
   onNavigateToIssue?: (issueId: string) => void;
 }
@@ -57,9 +57,9 @@ export function IssueDetailDrawer({
       <Drawer.Positioner>
         <Drawer.Content
           bg="bg.surface"
-          w={{ base: "full", md: "580px" }}
-          maxW={{ md: "640px" }}
-          minW={{ md: "560px" }}
+          w={{ base: "full", md: "560px", xl: "600px" }}
+          maxW={{ md: "92vw" }}
+          minW={{ md: "480px" }}
           display="flex"
           flexDirection="column"
           boxShadow="drawerLift"
@@ -77,8 +77,8 @@ export function IssueDetailDrawer({
             onEditComment={onEditComment}
             onDeleteComment={onDeleteComment}
             onToggleReaction={onToggleReaction}
-            onDelete={(id) => {
-              onDelete(id);
+            onDelete={async (id) => {
+              await onDelete(id);
               onClose();
             }}
             onClose={onClose}

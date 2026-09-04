@@ -1,11 +1,11 @@
 import { Box, Flex } from "@chakra-ui/react";
 import { OrganizationRole } from "@rivet/shared";
 import { useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { Outlet, useMatch, useNavigate, useParams } from "react-router-dom";
 
-import { isSessionExpiredError } from "../auth-api";
+import { getCurrentUserName, isSessionExpiredError } from "../auth-api";
 import { AppSidebar } from "../components/app/AppSidebar";
 import { useLogout } from "../components/app/use-logout";
 import { useActiveOrg } from "../components/billing/use-active-org";
@@ -35,11 +35,11 @@ import {
 } from "../components/issues/IssueFilterBar";
 import {
   CommentRateLimitError,
-  fetchIssuesMock,
   refetchIssuesMock,
   submitCommentMock,
 } from "../components/issues/issues-api";
 import { fadeInUp } from "../components/issues/issues-motion";
+import { issuesQueryKeys } from "../components/issues/issues-query-keys";
 import { IssuesBoardView } from "../components/issues/IssuesBoardView";
 import {
   IssuesErrorState,
@@ -53,17 +53,21 @@ import {
   type IssuesViewMode,
   IssuesViewToggle,
 } from "../components/issues/IssuesViewToggle";
-import {
-  MOCK_CURRENT_USER,
-  MOCK_ISSUES,
-  MOCK_TEAM_MEMBERS,
-} from "../components/issues/mock-issues-data";
+import { MOCK_TEAM_MEMBERS } from "../components/issues/mock-issues-data";
 import { NewIssueDialog } from "../components/issues/NewIssueDialog";
+import {
+  useDeleteIssueMutation,
+  useProjectIssues,
+  useProjectIssueSummary,
+} from "../components/issues/use-issues-queries";
 import {
   canCreateProjectIssues,
   canManageProject,
 } from "../components/projects/project-permissions";
-import { computeProjectStats } from "../components/projects/project-stats";
+import {
+  applyIssueSummaryToProjectStats,
+  computeProjectStats,
+} from "../components/projects/project-stats";
 import type { Project } from "../components/projects/project-types";
 import { ProjectDetailHeader } from "../components/projects/ProjectDetailHeader";
 import {
@@ -103,12 +107,14 @@ export default function ProjectDetailPage() {
   const logout = useLogout();
   const queryClient = useQueryClient();
   const { orgId, orgsStatus } = useActiveOrg();
+  const currentUser = getCurrentUserName();
   const projectQuery = useProject(orgId, projectId);
   const project = projectQuery.data ?? null;
   const archiveMutation = useArchiveProjectMutation(orgId);
   const unarchiveMutation = useUnarchiveProjectMutation(orgId);
   const updateMutation = useUpdateProjectMutation(orgId);
   const deleteMutation = useDeleteProjectMutation(orgId);
+  const deleteIssueMutation = useDeleteIssueMutation(orgId);
   const archivePending =
     archiveMutation.isPending || unarchiveMutation.isPending;
   const deletePending = deleteMutation.isPending;
@@ -128,9 +134,24 @@ export default function ProjectDetailPage() {
               ? "loading"
               : "error";
 
-  const [issues, setIssues] = useState<Issue[]>([]);
-  const [issuesLoadState, setIssuesLoadState] =
-    useState<IssuesLoadState>("loading");
+  const issuesQuery = useProjectIssues(orgId, projectId, {
+    enabled: projectLoadState === "success",
+    projectColor: project?.color,
+  });
+  const summaryQuery = useProjectIssueSummary(orgId, projectId, {
+    enabled: projectLoadState === "success",
+  });
+  const issues: Issue[] = useMemo(
+    () => issuesQuery.data ?? [],
+    [issuesQuery.data]
+  );
+  const issuesKey = issuesQueryKeys.projectList(orgId, projectId ?? "");
+  const issuesLoadState: IssuesLoadState =
+    projectLoadState !== "success" || issuesQuery.isPending
+      ? "loading"
+      : issuesQuery.isError
+        ? "error"
+        : "success";
   const [isRefetching, setIsRefetching] = useState(false);
   const [filters, setFilters] = useState<IssueFilters>(EMPTY_FILTERS);
   const [activeTab, setActiveTab] = useState<ProjectDetailTab>("issues");
@@ -144,12 +165,10 @@ export default function ProjectDetailPage() {
   const canManage = canManageProject(MOCK_ROLE);
   const canDelete = canDeleteIssues(MOCK_ROLE);
 
-  // Reset issue state when navigating between projects.
+  // Reset selection when navigating between projects.
   const [trackedProjectId, setTrackedProjectId] = useState(projectId);
   if (trackedProjectId !== projectId) {
     setTrackedProjectId(projectId);
-    setIssues([]);
-    setIssuesLoadState("loading");
     setSelectedIds(new Set());
   }
 
@@ -168,31 +187,30 @@ export default function ProjectDetailPage() {
     if (issueId) setActiveTab("issues");
   }
 
-  const loadIssues = useCallback(() => {
-    if (!projectId) return;
-    fetchIssuesMock(MOCK_ISSUES)
-      .then((data) => {
-        setIssues(data.filter((issue) => issue.projectId === projectId));
-        setIssuesLoadState("success");
-      })
-      .catch(() => setIssuesLoadState("error"));
-  }, [projectId]);
-
   const retryIssues = () => {
-    setIssuesLoadState("loading");
-    loadIssues();
+    void issuesQuery.refetch();
   };
 
-  useEffect(() => {
-    if (projectLoadState !== "success") return;
-    loadIssues();
-  }, [projectLoadState, loadIssues]);
+  const setIssues = useCallback(
+    (updater: (prev: Issue[]) => Issue[]) => {
+      queryClient.setQueryData<Issue[]>(issuesKey, (prev) =>
+        updater(prev ?? [])
+      );
+    },
+    [issuesKey, queryClient]
+  );
 
-  const projectStats = useMemo(() => computeProjectStats(issues), [issues]);
+  const computedStats = useMemo(() => computeProjectStats(issues), [issues]);
+  const projectStats = useMemo(() => {
+    if (issuesLoadState === "success" || !summaryQuery.data) {
+      return computedStats;
+    }
+    return applyIssueSummaryToProjectStats(computedStats, summaryQuery.data);
+  }, [computedStats, issuesLoadState, summaryQuery.data]);
 
   const filteredIssues = useMemo(
-    () => filterIssues(issues, filters, MOCK_CURRENT_USER),
-    [issues, filters]
+    () => filterIssues(issues, filters, currentUser),
+    [issues, filters, currentUser]
   );
 
   const filtersActive = hasActiveFilters(filters);
@@ -222,26 +240,42 @@ export default function ProjectDetailPage() {
     setIssues((prev) =>
       prev.map((issue) => (issue.id === id ? updater(issue) : issue))
     );
-  };
-
-  const handleIssueUpdate = (id: string, patch: Partial<Issue>) => {
-    setIssues((prev) =>
-      prev.map((issue) => (issue.id === id ? { ...issue, ...patch } : issue))
+    queryClient.setQueryData<Issue>(
+      issuesQueryKeys.detail(orgId, id),
+      (prev) => (prev ? updater(prev) : prev)
     );
   };
 
-  const handleIssuesDelete = (ids: string[]) => {
-    const idSet = new Set(ids);
-    setIssues((prev) => prev.filter((issue) => !idSet.has(issue.id)));
-    if (issueId && idSet.has(issueId)) {
-      void navigate(`/projects/${projectId}`);
+  const handleIssueUpdate = (id: string, patch: Partial<Issue>) => {
+    patchIssue(id, (issue) => ({ ...issue, ...patch }));
+  };
+
+  const handleIssuesDelete = async (ids: string[]) => {
+    try {
+      const { deleted, errors } = await deleteIssueMutation.mutateAsync(ids);
+      if (issueId && deleted.some((issue) => issue.id === issueId)) {
+        void navigate(`/projects/${projectId}`);
+      }
+      if (errors.length > 0) {
+        toast.error(`Deleted ${deleted.length} of ${ids.length} issues`);
+        return;
+      }
+      toast.success(
+        ids.length === 1 ? "Issue deleted" : `Deleted ${ids.length} issues`
+      );
+    } catch (error) {
+      if (isSessionExpiredError(error)) return;
+      toast.error(
+        error instanceof Error ? error.message : "Couldn't delete this issue"
+      );
+      throw error;
     }
   };
 
   const handleAddComment = async (targetIssueId: string, body: string) => {
     const tempId = `pending-${crypto.randomUUID()}`;
     patchIssue(targetIssueId, (issue) =>
-      applyIssueCommentAdd(issue, body, MOCK_CURRENT_USER, MOCK_TEAM_MEMBERS, {
+      applyIssueCommentAdd(issue, body, currentUser, MOCK_TEAM_MEMBERS, {
         id: tempId,
         syncStatus: "pending",
       })
@@ -452,7 +486,7 @@ export default function ProjectDetailPage() {
 
     if (activeTab === "settings") {
       return (
-        <Box px={{ base: "5", md: "10" }} py="8">
+        <Box px={{ base: "5", md: "10" }} pt="4" pb="8">
           <ProjectSettingsTab
             project={project}
             role={MOCK_ROLE}
@@ -485,13 +519,17 @@ export default function ProjectDetailPage() {
           <IssuesViewToggle value={viewMode} onChange={setViewMode} />
         </Flex>
 
-        <IssuesRefetchBar active={isRefetching} />
+        <IssuesRefetchBar
+          active={
+            isRefetching || (issuesQuery.isFetching && !issuesQuery.isPending)
+          }
+        />
         <IssueFilterBar
           filters={filters}
           onChange={handleFiltersChange}
           projects={[]}
           teamMembers={MOCK_TEAM_MEMBERS}
-          currentUserName={MOCK_CURRENT_USER}
+          currentUserName={currentUser}
           hideProjectFilter
         />
 
@@ -534,7 +572,7 @@ export default function ProjectDetailPage() {
             value={{
               issues,
               role: MOCK_ROLE,
-              currentUser: MOCK_CURRENT_USER,
+              currentUser: currentUser,
               teamMembers: MOCK_TEAM_MEMBERS,
               onUpdate: handleIssueUpdate,
               onAddComment: handleAddComment,
@@ -554,7 +592,11 @@ export default function ProjectDetailPage() {
             <ProjectDetailHeader
               project={project}
               stats={projectStats}
-              statsLoading={issuesLoadState === "loading"}
+              statsLoading={
+                issuesLoadState === "loading" &&
+                summaryQuery.isPending &&
+                !summaryQuery.data
+              }
               canEdit={canEdit}
               canCreateIssue={canCreate}
               canManage={canManage}
@@ -597,7 +639,13 @@ export default function ProjectDetailPage() {
                 },
               ]}
               lockedProjectId={project.id}
-              onCreated={(issue) => setIssues((prev) => [issue, ...prev])}
+              onCreated={(issue) =>
+                setIssues((prev) =>
+                  prev.some((item) => item.id === issue.id)
+                    ? prev
+                    : [issue, ...prev]
+                )
+              }
               initialStatus={dialogStatus}
             />
           </IssueDetailProvider>

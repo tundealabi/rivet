@@ -1,12 +1,15 @@
 import { useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
+import { useActiveOrg } from "../billing/use-active-org";
 import {
   issueDetailFullPath,
   projectIssuesForDetail,
   useIssueDetailActions,
 } from "./issue-detail-actions";
 import { IssueDetailDrawer } from "./IssueDetailDrawer";
+import { isIssueNotFoundError } from "./issues-api";
+import { useIssue } from "./use-issues-queries";
 
 export function IssueDetailDrawerHost() {
   const { projectId, issueId } = useParams<{
@@ -14,9 +17,10 @@ export function IssueDetailDrawerHost() {
     issueId: string;
   }>();
   const navigate = useNavigate();
+  const { orgId } = useActiveOrg();
   const actions = useIssueDetailActions();
 
-  const issue =
+  const listedIssue =
     projectId && issueId
       ? actions.issues.find(
           (candidate) =>
@@ -24,12 +28,32 @@ export function IssueDetailDrawerHost() {
         )
       : undefined;
 
+  const issueQuery = useIssue(orgId, issueId, {
+    enabled: Boolean(orgId && issueId),
+    projectColor: listedIssue?.projectColor,
+  });
+
+  const fetchedIssue =
+    issueQuery.data && (!projectId || issueQuery.data.projectId === projectId)
+      ? issueQuery.data
+      : undefined;
+
+  const issue = listedIssue ?? fetchedIssue;
+
+  const issueMissing =
+    Boolean(projectId && issueId) &&
+    !issue &&
+    !issueQuery.isPending &&
+    !issueQuery.isFetching &&
+    (isIssueNotFoundError(issueQuery.error) ||
+      issueQuery.isSuccess ||
+      issueQuery.isError);
+
   useEffect(() => {
     if (!projectId || !issueId) return;
-    if (!issue) {
-      void navigate(`/projects/${projectId}`, { replace: true });
-    }
-  }, [projectId, issueId, issue, navigate]);
+    if (!issueMissing) return;
+    void navigate(`/projects/${projectId}`, { replace: true });
+  }, [projectId, issueId, issueMissing, navigate]);
 
   if (!projectId || !issueId || !issue) return null;
 

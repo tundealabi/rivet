@@ -7,6 +7,7 @@ import {
   Input,
   InputGroup,
   Popover,
+  Portal,
   Stack,
   Text,
 } from "@chakra-ui/react";
@@ -20,22 +21,15 @@ import {
   PRIORITY_OPTIONS,
   STATUS_OPTIONS,
 } from "./issue-filters";
+import type {
+  AssigneeFilterValue,
+  IssueFilters,
+  IssuePriority,
+  IssueStatus,
+} from "./issue-types";
 import { EASE_OUT, transition } from "./issues-motion";
 
-export type IssueStatus =
-  "backlog" | "todo" | "in_progress" | "in_review" | "done" | "cancelled";
-
-export type IssuePriority = "low" | "medium" | "high" | "critical";
-
-export type AssigneeFilterValue = string;
-
-export interface IssueFilters {
-  search: string;
-  projectIds: string[];
-  statuses: IssueStatus[];
-  priorities: IssuePriority[];
-  assignees: AssigneeFilterValue[];
-}
+export type { AssigneeFilterValue, IssueFilters, IssuePriority, IssueStatus };
 
 const STATUS_LABELS = Object.fromEntries(
   STATUS_OPTIONS.map((o) => [o.value, o.label])
@@ -88,74 +82,79 @@ function MultiSelectDropdown<T extends string>({
   shortcuts?: { value: T; label: string }[];
 }) {
   return (
-    <Popover.Root positioning={{ placement: "bottom-start" }}>
+    <Popover.Root
+      positioning={{ placement: "bottom-start", strategy: "fixed", gutter: 4 }}
+    >
       <Popover.Trigger asChild>
         <Box as="span" display="inline-flex">
           <FilterTrigger label={label} count={selected.length} />
         </Box>
       </Popover.Trigger>
-      <Popover.Positioner>
-        <Popover.Content
-          bg="bg.surface"
-          borderWidth="1px"
-          borderColor="border.default"
-          borderRadius="control"
-          boxShadow="hover"
-          p="2"
-          minW="48"
-          zIndex="popover"
-        >
-          <Stack gap="0.5">
-            {shortcuts?.map((item) => (
-              <Checkbox.Root
-                key={item.value}
-                size="sm"
-                px="2"
-                py="1.5"
-                borderRadius="control"
-                checked={selected.includes(item.value)}
-                onCheckedChange={() =>
-                  onChange(toggleValue(selected, item.value))
-                }
-                _hover={{ bg: "bg.surfaceHover" }}
-              >
-                <Checkbox.HiddenInput />
-                <Checkbox.Control />
-                <Checkbox.Label
-                  fontSize="sm"
-                  fontWeight="medium"
-                  color="fg.primary"
+      <Portal>
+        <Popover.Positioner style={{ zIndex: 1500 }}>
+          <Popover.Content
+            bg="bg.surface"
+            borderWidth="1px"
+            borderColor="border.default"
+            borderRadius="control"
+            boxShadow="hover"
+            p="2"
+            minW="48"
+            w="max-content"
+            overflow="hidden"
+          >
+            <Stack gap="0.5">
+              {shortcuts?.map((item) => (
+                <Checkbox.Root
+                  key={item.value}
+                  size="sm"
+                  px="2"
+                  py="1.5"
+                  borderRadius="control"
+                  checked={selected.includes(item.value)}
+                  onCheckedChange={() =>
+                    onChange(toggleValue(selected, item.value))
+                  }
+                  _hover={{ bg: "bg.surfaceHover" }}
                 >
-                  {item.label}
-                </Checkbox.Label>
-              </Checkbox.Root>
-            ))}
-            {shortcuts && shortcuts.length > 0 && (
-              <Box h="px" bg="border.default" my="1" />
-            )}
-            {options.map((option) => (
-              <Checkbox.Root
-                key={option.value}
-                size="sm"
-                px="2"
-                py="1.5"
-                borderRadius="control"
-                checked={selected.includes(option.value)}
-                onCheckedChange={() =>
-                  onChange(toggleValue(selected, option.value))
-                }
-                _hover={{ bg: "bg.surfaceHover" }}
-              >
-                <Checkbox.HiddenInput />
-                <Checkbox.Control />
-                <Checkbox.Label fontSize="sm" color="fg.secondary">
-                  {option.label}
-                </Checkbox.Label>
-              </Checkbox.Root>
-            ))}
-          </Stack>
-        </Popover.Content>
-      </Popover.Positioner>
+                  <Checkbox.HiddenInput />
+                  <Checkbox.Control />
+                  <Checkbox.Label
+                    fontSize="sm"
+                    fontWeight="medium"
+                    color="fg.primary"
+                  >
+                    {item.label}
+                  </Checkbox.Label>
+                </Checkbox.Root>
+              ))}
+              {shortcuts && shortcuts.length > 0 && (
+                <Box h="px" bg="border.default" my="1" />
+              )}
+              {options.map((option) => (
+                <Checkbox.Root
+                  key={option.value}
+                  size="sm"
+                  px="2"
+                  py="1.5"
+                  borderRadius="control"
+                  checked={selected.includes(option.value)}
+                  onCheckedChange={() =>
+                    onChange(toggleValue(selected, option.value))
+                  }
+                  _hover={{ bg: "bg.surfaceHover" }}
+                >
+                  <Checkbox.HiddenInput />
+                  <Checkbox.Control />
+                  <Checkbox.Label fontSize="sm" color="fg.secondary">
+                    {option.label}
+                  </Checkbox.Label>
+                </Checkbox.Root>
+              ))}
+            </Stack>
+          </Popover.Content>
+        </Popover.Positioner>
+      </Portal>
     </Popover.Root>
   );
 }

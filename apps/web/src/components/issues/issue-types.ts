@@ -1,4 +1,17 @@
-import type { IssuePriority, IssueStatus } from "./IssueFilterBar";
+export type IssueStatus =
+  "backlog" | "todo" | "in_progress" | "in_review" | "done" | "cancelled";
+
+export type IssuePriority = "low" | "medium" | "high" | "critical";
+
+export type AssigneeFilterValue = string;
+
+export interface IssueFilters {
+  search: string;
+  projectIds: string[];
+  statuses: IssueStatus[];
+  priorities: IssuePriority[];
+  assignees: AssigneeFilterValue[];
+}
 
 export interface IssueLabel {
   id: string;
@@ -47,9 +60,13 @@ export interface Issue {
   number: number;
   title: string;
   description: string;
+  /** SHA-256 hex of description from the last read; used for conditional updates. */
+  descriptionHash?: string;
   status: IssueStatus;
   priority: IssuePriority;
   assignee: string | null;
+  /** Org member user ID from the last read; used for conditional assignee updates. */
+  assigneeId?: string | null;
   assigneeInitials: string | null;
   reporter: string;
   reporterInitials: string;
@@ -68,6 +85,7 @@ export interface Issue {
 }
 
 export interface TeamMember {
+  id?: string;
   name: string;
   initials: string;
 }

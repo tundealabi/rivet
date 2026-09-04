@@ -1,6 +1,14 @@
-import { Box, Button, Flex, HStack, IconButton, Text } from "@chakra-ui/react";
+import {
+  Box,
+  Button,
+  Dialog,
+  Flex,
+  HStack,
+  IconButton,
+  Text,
+} from "@chakra-ui/react";
 import { OrganizationRole } from "@rivet/shared";
-import toast from "react-hot-toast";
+import { useState } from "react";
 import { PiArrowsIn, PiTrash, PiX } from "react-icons/pi";
 
 import {
@@ -24,6 +32,7 @@ import { IssueDetailBody } from "./IssueDetailBody";
 import { IssueDetailDrawerFooter } from "./IssueDetailDrawerFooter";
 import { IssueDetailDrawerStrip } from "./IssueDetailDrawerStrip";
 import { IssueDetailTitleBlock } from "./IssueDetailTitleBlock";
+import { EASE_OUT } from "./issues-motion";
 
 export type IssueDetailVariant = "drawer" | "page";
 
@@ -40,7 +49,7 @@ interface IssueDetailContentProps {
   onEditComment: (issueId: string, commentId: string, body: string) => void;
   onDeleteComment: (issueId: string, commentId: string) => void;
   onToggleReaction: (issueId: string, commentId: string, emoji: string) => void;
-  onDelete: (id: string) => void;
+  onDelete: (id: string) => void | Promise<void>;
   onClose?: () => void;
   onExpand?: () => void;
   onCollapse?: () => void;
@@ -73,6 +82,20 @@ export function IssueDetailContent({
   const editable = canEditIssue(role, issue, currentUser);
   const canComment = canCommentOnIssue(role);
   const deletable = canDeleteIssue(role);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const confirmDelete = async () => {
+    try {
+      setDeleting(true);
+      await onDelete(issue.id);
+      setDeleteOpen(false);
+    } catch {
+      // Page handler already surfaced the error.
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const isPage = variant === "page";
   const issueKey = formatProjectIssueKey(issue);
@@ -98,7 +121,12 @@ export function IssueDetailContent({
                 bg={issue.projectColor}
                 flexShrink="0"
               />
-              <Text fontSize="xs" fontFamily="mono" color="fg.muted">
+              <Text
+                fontSize="xs"
+                fontFamily="mono"
+                fontWeight="bold"
+                color="accent.default"
+              >
                 {issueKey}
               </Text>
             </HStack>
@@ -224,10 +252,7 @@ export function IssueDetailContent({
                   borderColor="status.error"
                   color="status.error"
                   _hover={{ bg: "danger.ghostHover" }}
-                  onClick={() => {
-                    onDelete(issue.id);
-                    toast.success("Issue deleted");
-                  }}
+                  onClick={() => setDeleteOpen(true)}
                 >
                   <PiTrash size={16} />
                   Delete issue
@@ -255,6 +280,63 @@ export function IssueDetailContent({
           onNavigateToIssue={onNavigateToIssue}
         />
       </Flex>
+
+      {isPage && (
+        <Dialog.Root
+          open={deleteOpen}
+          onOpenChange={(e) => {
+            if (!e.open && deleting) return;
+            setDeleteOpen(e.open);
+          }}
+          placement="center"
+        >
+          <Dialog.Backdrop bg="blackAlpha.600" backdropFilter="blur(4px)" />
+          <Dialog.Positioner>
+            <Dialog.Content
+              bg="bg.surface"
+              borderRadius="card"
+              maxW="sm"
+              w="full"
+              mx="4"
+              boxShadow="elevated"
+              animation={`rivet-scale-in 0.28s ${EASE_OUT} both`}
+            >
+              <Dialog.Header pt="6" px="6" pb="0">
+                <Dialog.Title color="fg.primary">
+                  Delete {issueKey}?
+                </Dialog.Title>
+              </Dialog.Header>
+              <Dialog.Body px="6" py="4">
+                <Text fontSize="sm" color="fg.secondary" lineHeight="1.6">
+                  This cannot be undone.
+                </Text>
+              </Dialog.Body>
+              <Dialog.Footer px="6" pb="6" pt="0" gap="3">
+                <Button
+                  variant="outline"
+                  borderRadius="control"
+                  disabled={deleting}
+                  onClick={() => setDeleteOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  borderRadius="control"
+                  bg="status.error"
+                  color="white"
+                  loading={deleting}
+                  _hover={{ bg: "red.600" }}
+                  onClick={() => {
+                    void confirmDelete();
+                  }}
+                >
+                  Delete issue
+                </Button>
+              </Dialog.Footer>
+            </Dialog.Content>
+          </Dialog.Positioner>
+        </Dialog.Root>
+      )}
     </IssueDetailShortcutsProvider>
   );
 }

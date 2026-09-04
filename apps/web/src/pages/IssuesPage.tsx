@@ -1,10 +1,12 @@
 import { Box, Button, Flex, Heading, HStack, Text } from "@chakra-ui/react";
 import { OrganizationRole } from "@rivet/shared";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { PiExport, PiPlusBold, PiSignOut } from "react-icons/pi";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
+import { getCurrentUserName, isSessionExpiredError } from "../auth-api";
 import { AppSidebar } from "../components/app/AppSidebar";
 import { useLogout } from "../components/app/use-logout";
 import { useActiveOrg } from "../components/billing/use-active-org";
@@ -29,15 +31,13 @@ import {
   type IssueFilters,
   type IssueStatus,
 } from "../components/issues/IssueFilterBar";
-import {
-  fetchIssuesMock,
-  refetchIssuesMock,
-} from "../components/issues/issues-api";
+import { refetchIssuesMock } from "../components/issues/issues-api";
 import {
   EASE_OUT,
   fadeInUp,
   transition,
 } from "../components/issues/issues-motion";
+import { issuesQueryKeys } from "../components/issues/issues-query-keys";
 import { IssuesBoardView } from "../components/issues/IssuesBoardView";
 import {
   IssuesEmptyState,
@@ -48,13 +48,12 @@ import {
 } from "../components/issues/IssuesPageStates";
 import { IssuesTableView } from "../components/issues/IssuesTableView";
 import { IssuesViewToggle } from "../components/issues/IssuesViewToggle";
-import {
-  MOCK_CURRENT_USER,
-  MOCK_ISSUES,
-  MOCK_PROJECTS,
-  MOCK_TEAM_MEMBERS,
-} from "../components/issues/mock-issues-data";
+import { MOCK_TEAM_MEMBERS } from "../components/issues/mock-issues-data";
 import { NewIssueDialog } from "../components/issues/NewIssueDialog";
+import {
+  useDeleteIssueMutation,
+  useOrgIssues,
+} from "../components/issues/use-issues-queries";
 import { useProjectsList } from "../components/projects/use-projects-queries";
 
 type ViewMode = "table" | "board";
@@ -70,11 +69,26 @@ export default function IssuesPage() {
   const [searchParams] = useSearchParams();
   const listPreset = parseIssueListPreset(searchParams.get("preset"));
   const { orgId } = useActiveOrg();
+  const currentUser = getCurrentUserName();
+  const queryClient = useQueryClient();
   const projectsQuery = useProjectsList(orgId);
   const projects = projectsQuery.data ?? [];
+  const issuesQuery = useOrgIssues(orgId, projects, {
+    enabled: projectsQuery.isSuccess,
+  });
+  const deleteIssueMutation = useDeleteIssueMutation(orgId);
+  const issues = useMemo(() => issuesQuery.data ?? [], [issuesQuery.data]);
+  const issuesKey = issuesQueryKeys.orgList(
+    orgId,
+    projects.map((project) => project.id)
+  );
 
-  const [issues, setIssues] = useState<Issue[]>([]);
-  const [loadState, setLoadState] = useState<LoadState>("loading");
+  const loadState: LoadState =
+    projectsQuery.isError || issuesQuery.isError
+      ? "error"
+      : !orgId || !projectsQuery.isSuccess || issuesQuery.isPending
+        ? "loading"
+        : "success";
   const [isRefetching, setIsRefetching] = useState(false);
   const [filters, setFilters] = useState<IssueFilters>(() =>
     listPreset ? filtersFromPreset(listPreset) : EMPTY_FILTERS
@@ -89,32 +103,18 @@ export default function IssuesPage() {
   const logout = useLogout();
   const navigate = useNavigate();
 
-  const loadIssues = useCallback(async () => {
-    setLoadState("loading");
-    try {
-      const data = await fetchIssuesMock(MOCK_ISSUES);
-      setIssues(data);
-      setLoadState("success");
-    } catch {
-      setLoadState("error");
-    }
-  }, []);
+  const setIssues = useCallback(
+    (updater: (prev: Issue[]) => Issue[]) => {
+      queryClient.setQueryData<Issue[]>(issuesKey, (prev) =>
+        updater(prev ?? [])
+      );
+    },
+    [issuesKey, queryClient]
+  );
 
-  useEffect(() => {
-    let cancelled = false;
-    fetchIssuesMock(MOCK_ISSUES)
-      .then((data) => {
-        if (cancelled) return;
-        setIssues(data);
-        setLoadState("success");
-      })
-      .catch(() => {
-        if (!cancelled) setLoadState("error");
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const loadIssues = useCallback(() => {
+    void Promise.all([projectsQuery.refetch(), issuesQuery.refetch()]);
+  }, [issuesQuery, projectsQuery]);
 
   const [prevFilters, setPrevFilters] = useState(filters);
   if (prevFilters !== filters) {
@@ -141,9 +141,9 @@ export default function IssuesPage() {
   }, [filters, loadState]);
 
   const filteredIssues = useMemo(() => {
-    const base = filterIssues(issues, filters, MOCK_CURRENT_USER);
-    return applyIssueListPreset(base, listPreset, MOCK_CURRENT_USER);
-  }, [issues, filters, listPreset]);
+    const base = filterIssues(issues, filters, currentUser);
+    return applyIssueListPreset(base, listPreset, currentUser);
+  }, [issues, filters, listPreset, currentUser]);
 
   const openCount = useMemo(
     () => issues.filter((i) => isOpenStatus(i.status)).length,
@@ -173,6 +173,10 @@ export default function IssuesPage() {
     setIssues((prev) =>
       prev.map((issue) => (issue.id === id ? { ...issue, ...patch } : issue))
     );
+    queryClient.setQueryData<Issue>(
+      issuesQueryKeys.detail(orgId, id),
+      (prev) => (prev ? { ...prev, ...patch } : prev)
+    );
   };
 
   const handleDialogOpenChange = (open: boolean) => {
@@ -180,9 +184,23 @@ export default function IssuesPage() {
     if (!open) setDialogDefaults({});
   };
 
-  const handleIssuesDelete = (ids: string[]) => {
-    const idSet = new Set(ids);
-    setIssues((prev) => prev.filter((issue) => !idSet.has(issue.id)));
+  const handleIssuesDelete = async (ids: string[]) => {
+    try {
+      const { deleted, errors } = await deleteIssueMutation.mutateAsync(ids);
+      if (errors.length > 0) {
+        toast.error(`Deleted ${deleted.length} of ${ids.length} issues`);
+        return;
+      }
+      toast.success(
+        ids.length === 1 ? "Issue deleted" : `Deleted ${ids.length} issues`
+      );
+    } catch (error) {
+      if (isSessionExpiredError(error)) return;
+      toast.error(
+        error instanceof Error ? error.message : "Couldn't delete this issue"
+      );
+      throw error;
+    }
   };
 
   const openIssueDetail = (issue: Issue) => {
@@ -357,13 +375,17 @@ export default function IssuesPage() {
         </Flex>
 
         <Box flex="1" overflowY="auto" position="relative">
-          <IssuesRefetchBar active={isRefetching} />
+          <IssuesRefetchBar
+            active={
+              isRefetching || (issuesQuery.isFetching && !issuesQuery.isPending)
+            }
+          />
           <IssueFilterBar
             filters={filters}
             onChange={setFilters}
-            projects={MOCK_PROJECTS}
+            projects={projects}
             teamMembers={MOCK_TEAM_MEMBERS}
-            currentUserName={MOCK_CURRENT_USER}
+            currentUserName={currentUser}
           />
 
           <Box px={{ base: "5", md: "10" }} py="8">
@@ -381,7 +403,11 @@ export default function IssuesPage() {
         projects={projects}
         projectsLoading={projectsQuery.isPending}
         projectsError={projectsQuery.isError}
-        onCreated={(issue) => setIssues((prev) => [issue, ...prev])}
+        onCreated={(issue) =>
+          setIssues((prev) =>
+            prev.some((item) => item.id === issue.id) ? prev : [issue, ...prev]
+          )
+        }
         initialProjectId={dialogDefaults.projectId}
         initialStatus={dialogDefaults.status}
       />

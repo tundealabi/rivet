@@ -80,6 +80,10 @@ export default tseslint.config(
       globals: {
         ...globals.browser,
       },
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir,
+      },
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
