@@ -24,7 +24,7 @@ export function canCommentOnIssue(role: OrganizationRole): boolean {
 }
 
 export function canDeleteIssue(role: OrganizationRole): boolean {
-  return role === OrganizationRole.OWNER || role === OrganizationRole.ADMIN;
+  return role !== OrganizationRole.VIEWER;
 }
 
 export function canEditComment(

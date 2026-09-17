@@ -1,4 +1,4 @@
-import { Box, Button, HStack, Menu, Text } from "@chakra-ui/react";
+import { Box, Button, HStack, Menu, Portal, Text } from "@chakra-ui/react";
 import {
   PiCaretDown,
   PiCheckCircle,
@@ -55,7 +55,13 @@ export function IssueStatusSelect({
     STATUS_OPTIONS.find((option) => option.value === value)?.label ?? value;
 
   return (
-    <Menu.Root positioning={{ placement: "bottom-start", sameWidth: true }}>
+    <Menu.Root
+      positioning={{
+        placement: "bottom-start",
+        strategy: "fixed",
+        gutter: 4,
+      }}
+    >
       <Menu.Trigger asChild>
         <Button
           type="button"
@@ -91,40 +97,45 @@ export function IssueStatusSelect({
           </Box>
         </Button>
       </Menu.Trigger>
-      <Menu.Positioner>
-        <Menu.Content
-          bg="bg.surface"
-          borderWidth="1px"
-          borderColor="border.default"
-          borderRadius="control"
-          boxShadow="elevated"
-          p="1"
-          zIndex="popover"
-          animation={`rivet-scale-in 0.2s ${EASE_OUT} both`}
-        >
-          {STATUS_OPTIONS.map((option) => {
-            const selected = option.value === value;
+      <Portal>
+        <Menu.Positioner style={{ zIndex: 1500 }}>
+          <Menu.Content
+            bg="bg.surface"
+            borderWidth="1px"
+            borderColor="border.default"
+            borderRadius="control"
+            boxShadow="elevated"
+            p="1"
+            minW="44"
+            w="max-content"
+            overflow="hidden"
+            animation={`rivet-scale-in 0.2s ${EASE_OUT} both`}
+          >
+            {STATUS_OPTIONS.map((option) => {
+              const selected = option.value === value;
 
-            return (
-              <Menu.Item
-                key={option.value}
-                value={option.value}
-                borderRadius="control"
-                bg={selected ? "brand.subtle" : "transparent"}
-                fontWeight={selected ? "semibold" : "normal"}
-                onClick={() => onChange(option.value)}
-              >
-                <HStack gap="2">
-                  <IssueStatusIcon status={option.value} />
-                  <Text fontSize="sm" color="fg.primary">
-                    {option.label}
-                  </Text>
-                </HStack>
-              </Menu.Item>
-            );
-          })}
-        </Menu.Content>
-      </Menu.Positioner>
+              return (
+                <Menu.Item
+                  key={option.value}
+                  value={option.value}
+                  borderRadius="control"
+                  bg={selected ? "brand.subtle" : "transparent"}
+                  fontWeight={selected ? "semibold" : "normal"}
+                  whiteSpace="nowrap"
+                  onClick={() => onChange(option.value)}
+                >
+                  <HStack gap="2" minW="0">
+                    <IssueStatusIcon status={option.value} />
+                    <Text fontSize="sm" color="fg.primary">
+                      {option.label}
+                    </Text>
+                  </HStack>
+                </Menu.Item>
+              );
+            })}
+          </Menu.Content>
+        </Menu.Positioner>
+      </Portal>
     </Menu.Root>
   );
 }

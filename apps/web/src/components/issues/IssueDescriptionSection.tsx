@@ -1,10 +1,12 @@
 import { Box, Text } from "@chakra-ui/react";
 import { useCallback, useState } from "react";
+import toast from "react-hot-toast";
 
+import { useActiveOrg } from "../billing/use-active-org";
 import { useRegisterIssueDetailShortcuts } from "./issue-detail-shortcuts-context";
 import type { Issue, TeamMember } from "./issue-types";
 import { IssueMarkdown } from "./IssueMarkdown";
-import { IssueConflictError, updateIssuePatchMock } from "./issues-api";
+import { IssueConflictError, issueFieldsFromUpdate } from "./issues-api";
 import { transition } from "./issues-motion";
 import { clearMarkdownDraft } from "./markdown-draft";
 import {
@@ -12,6 +14,7 @@ import {
   MarkdownEditorHint,
   MarkdownTextarea,
 } from "./MarkdownTextarea";
+import { useUpdateIssueMutation } from "./use-issues-queries";
 
 interface IssueDescriptionSectionProps {
   issue: Issue;
@@ -30,6 +33,8 @@ export function IssueDescriptionSection({
   onUpdate,
   registerShortcuts = false,
 }: IssueDescriptionSectionProps) {
+  const { orgId } = useActiveOrg();
+  const updateMutation = useUpdateIssueMutation(orgId);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(issue.description);
   const [conflict, setConflict] = useState(false);
@@ -74,7 +79,14 @@ export function IssueDescriptionSection({
 
     void (async () => {
       try {
-        await updateIssuePatchMock(issue.id, { description: draft });
+        const updated = await updateMutation.mutateAsync({
+          issueId: issue.id,
+          input: {
+            description: draft,
+            expectedDescriptionHash: issue.descriptionHash,
+          },
+        });
+        onUpdate(issue.id, issueFieldsFromUpdate(updated));
       } catch (error) {
         if (error instanceof IssueConflictError) {
           setConflict(true);
@@ -83,6 +95,7 @@ export function IssueDescriptionSection({
           return;
         }
         onUpdate(issue.id, { description: rollback, updatedAt: new Date() });
+        toast.error("Couldn't update description — please try again");
       }
     })();
   };

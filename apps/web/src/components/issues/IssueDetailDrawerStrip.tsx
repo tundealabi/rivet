@@ -24,8 +24,6 @@ import { useIssueDetailShortcuts } from "./issue-detail-shortcuts-context";
 import { formatProjectIssueKey, type Issue } from "./issue-types";
 import { EASE_OUT, transition } from "./issues-motion";
 
-const ISSUE_ID_COLOR = "#52525B";
-
 function issueDirectUrl(projectId: string, issueId: string): string {
   return `${window.location.origin}${issueDetailPath(projectId, issueId)}`;
 }
@@ -44,7 +42,7 @@ interface IssueDetailDrawerStripProps {
   onClose: () => void;
   onExpand: () => void;
   onNavigateToProject: () => void;
-  onDelete: () => void;
+  onDelete: () => void | Promise<void>;
   deletable: boolean;
   onDuplicate?: () => void;
   onMove?: () => void;
@@ -173,6 +171,7 @@ export function IssueDetailDrawerStrip({
 }: IssueDetailDrawerStripProps) {
   const [watching, setWatching] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [idHovered, setIdHovered] = useState(false);
   const { setShortcutsOpen } = useIssueDetailShortcuts();
 
@@ -232,16 +231,16 @@ export function IssueDetailDrawerStrip({
             border="none"
             cursor="pointer"
             p="0"
-            color={ISSUE_ID_COLOR}
+            color="accent.default"
             fontFamily="mono"
             fontSize="xs"
-            fontWeight="medium"
+            fontWeight="bold"
             letterSpacing="-0.01em"
             transition={transition.base}
             onMouseEnter={() => setIdHovered(true)}
             onMouseLeave={() => setIdHovered(false)}
             onClick={() => void copyIssueId()}
-            _hover={{ color: "fg.primary" }}
+            _hover={{ color: "accent.hover" }}
             aria-label={`Copy link for ${issueKey}`}
           >
             <Text as="span" truncate>
@@ -352,7 +351,10 @@ export function IssueDetailDrawerStrip({
 
       <Dialog.Root
         open={deleteOpen}
-        onOpenChange={(e) => setDeleteOpen(e.open)}
+        onOpenChange={(e) => {
+          if (!e.open && deleting) return;
+          setDeleteOpen(e.open);
+        }}
         placement="center"
       >
         <Dialog.Backdrop bg="blackAlpha.600" backdropFilter="blur(4px)" />
@@ -382,6 +384,7 @@ export function IssueDetailDrawerStrip({
               <Button
                 variant="outline"
                 borderRadius="control"
+                disabled={deleting}
                 onClick={() => setDeleteOpen(false)}
               >
                 Cancel
@@ -390,11 +393,20 @@ export function IssueDetailDrawerStrip({
                 borderRadius="control"
                 bg="status.error"
                 color="white"
+                loading={deleting}
                 _hover={{ bg: "red.600" }}
                 onClick={() => {
-                  setDeleteOpen(false);
-                  onDelete();
-                  toast.success("Issue deleted");
+                  void (async () => {
+                    try {
+                      setDeleting(true);
+                      await onDelete();
+                      setDeleteOpen(false);
+                    } catch {
+                      // Page handler already surfaced the error.
+                    } finally {
+                      setDeleting(false);
+                    }
+                  })();
                 }}
               >
                 Delete issue

@@ -79,12 +79,32 @@ export function getStoredUser(): AuthUser | null {
   if (!raw) return null;
 
   try {
-    const user = JSON.parse(raw) as AuthUser;
-    if (!user?.email || !user.firstName) return null;
-    return user;
+    const parsed: unknown = JSON.parse(raw);
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      !("email" in parsed) ||
+      !("firstName" in parsed) ||
+      typeof parsed.email !== "string" ||
+      typeof parsed.firstName !== "string"
+    ) {
+      return null;
+    }
+
+    return parsed as AuthUser;
   } catch {
     return null;
   }
+}
+
+export function getCurrentUserName(): string {
+  const user = getStoredUser();
+  if (!user) {
+    return "You";
+  }
+
+  const fullName = `${user.firstName} ${user.lastName}`.trim();
+  return fullName.length > 0 ? fullName : "You";
 }
 
 /**

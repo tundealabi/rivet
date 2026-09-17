@@ -58,3 +58,17 @@ export function computeProjectStats(
     members: memberNames.size,
   };
 }
+
+export function applyIssueSummaryToProjectStats(
+  stats: ProjectStats,
+  summary: {
+    byStatus: { in_progress: number; in_review: number };
+    open: number;
+  }
+): ProjectStats {
+  return {
+    ...stats,
+    open: summary.open,
+    inProgress: summary.byStatus.in_progress + summary.byStatus.in_review,
+  };
+}

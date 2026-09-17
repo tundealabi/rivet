@@ -14,7 +14,7 @@ export interface IssueDetailActions {
   onEditComment: (issueId: string, commentId: string, body: string) => void;
   onDeleteComment: (issueId: string, commentId: string) => void;
   onToggleReaction: (issueId: string, commentId: string, emoji: string) => void;
-  onDelete: (id: string) => void;
+  onDelete: (id: string) => void | Promise<void>;
   navigableIssueIds?: string[];
   onNavigateToIssue?: (issueId: string) => void;
 }

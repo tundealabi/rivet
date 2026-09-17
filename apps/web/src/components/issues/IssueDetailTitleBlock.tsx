@@ -1,9 +1,15 @@
 import { Box, Flex, HStack, Input, Text } from "@chakra-ui/react";
 import { useEffect, useRef, useState } from "react";
+import toast from "react-hot-toast";
 
-import type { Issue } from "./issue-types";
-import { formatRelativeTime, ISSUE_DETAIL_PAGE_MAX_W } from "./issue-types";
-import { updateIssuePatchMock } from "./issues-api";
+import { useActiveOrg } from "../billing/use-active-org";
+import {
+  formatRelativeTime,
+  type Issue,
+  ISSUE_DETAIL_PAGE_MAX_W,
+} from "./issue-types";
+import { issueFieldsFromUpdate } from "./issues-api";
+import { useUpdateIssueMutation } from "./use-issues-queries";
 
 const TITLE_COLOR = "#111111";
 const TITLE_SIZE = "26px";
@@ -39,6 +45,8 @@ export function IssueDetailTitleBlock({
   variant,
   onUpdate,
 }: IssueDetailTitleBlockProps) {
+  const { orgId } = useActiveOrg();
+  const updateMutation = useUpdateIssueMutation(orgId);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(issue.title);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -79,9 +87,14 @@ export function IssueDetailTitleBlock({
 
     void (async () => {
       try {
-        await updateIssuePatchMock(issue.id, { title: trimmed });
+        const updated = await updateMutation.mutateAsync({
+          issueId: issue.id,
+          input: { title: trimmed },
+        });
+        onUpdate(issue.id, issueFieldsFromUpdate(updated));
       } catch {
         onUpdate(issue.id, { title: rollback, updatedAt: new Date() });
+        toast.error("Couldn't update title — please try again");
       }
     })();
   };
@@ -91,8 +104,8 @@ export function IssueDetailTitleBlock({
   return (
     <Box
       px={isDrawer ? "6" : { base: "5", md: "10" }}
-      pt={isDrawer ? "7" : { base: "6", md: "7" }}
-      pb={isDrawer ? "5" : "6"}
+      pt={isDrawer ? "5" : { base: "6", md: "7" }}
+      pb={isDrawer ? "3" : "6"}
       flexShrink="0"
       maxW={isDrawer ? undefined : ISSUE_DETAIL_PAGE_MAX_W}
       mx={isDrawer ? undefined : "auto"}

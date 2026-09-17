@@ -110,33 +110,90 @@ export function IssueDetailBody({
   const isPage = variant === "page";
   const px = isPage ? { base: "5", md: "10" } : "6";
 
+  const metadataProps = {
+    issue,
+    editable,
+    currentUser,
+    teamMembers,
+    watching,
+    onUpdate,
+    onAddActivity,
+    onToggleWatch: toggleWatch,
+    onNavigateToProject,
+    pickerOpen,
+  };
+
+  const mainColumn = (
+    <>
+      <IssueDescriptionSection
+        issue={issue}
+        editable={editable}
+        teamMembers={teamMembers}
+        projectIssues={projectIssues}
+        onUpdate={onUpdate}
+        registerShortcuts={registerShortcuts}
+      />
+
+      <Box mt="8" flex="1" minH="0">
+        <IssueActivityThread
+          items={timeline}
+          role={role}
+          currentUser={currentUser}
+          onEditComment={(commentId, body) =>
+            onEditComment(issue.id, commentId, body)
+          }
+          onDeleteComment={(commentId) => onDeleteComment(issue.id, commentId)}
+          onToggleReaction={(commentId, emoji) =>
+            onToggleReaction(issue.id, commentId, emoji)
+          }
+        />
+      </Box>
+
+      {canComment && (
+        <IssueCommentComposer
+          issueId={issue.id}
+          teamMembers={teamMembers}
+          projectIssues={projectIssues}
+          onSubmit={(body) => onAddComment(issue.id, body)}
+          registerShortcuts={registerShortcuts}
+        />
+      )}
+    </>
+  );
+
+  if (!isPage) {
+    return (
+      <Flex direction="column" flex="1" minH="0" w="full">
+        <Box
+          px="6"
+          pb="4"
+          flexShrink="0"
+          borderBottomWidth="1px"
+          borderColor="border.divider"
+        >
+          <IssueMetadataSidebar {...metadataProps} layout="chips" />
+        </Box>
+
+        <Flex direction="column" flex="1" minW="0" px="6" py="5">
+          {mainColumn}
+        </Flex>
+      </Flex>
+    );
+  }
+
   return (
     <Flex
       direction={{ base: "column", lg: "row" }}
       flex="1"
       minH="0"
-      maxW={isPage ? ISSUE_DETAIL_PAGE_MAX_W : undefined}
-      mx={isPage ? "auto" : undefined}
+      maxW={ISSUE_DETAIL_PAGE_MAX_W}
+      mx="auto"
       w="full"
     >
-      {/* Mobile metadata — collapsible on top */}
       <Box display={{ base: "block", lg: "none" }} w="full" flexShrink="0">
-        <IssueMetadataSidebar
-          issue={issue}
-          editable={editable}
-          currentUser={currentUser}
-          teamMembers={teamMembers}
-          watching={watching}
-          onUpdate={onUpdate}
-          onAddActivity={onAddActivity}
-          onToggleWatch={toggleWatch}
-          onNavigateToProject={onNavigateToProject}
-          collapsible
-          pickerOpen={pickerOpen}
-        />
+        <IssueMetadataSidebar {...metadataProps} collapsible />
       </Box>
 
-      {/* Main column ~65% */}
       <Flex
         direction="column"
         flex={{ base: "1", lg: "0 0 65%" }}
@@ -146,62 +203,16 @@ export function IssueDetailBody({
         borderRightWidth={{ lg: "1px" }}
         borderColor="border.divider"
       >
-        <IssueDescriptionSection
-          issue={issue}
-          editable={editable}
-          teamMembers={teamMembers}
-          projectIssues={projectIssues}
-          onUpdate={onUpdate}
-          registerShortcuts={registerShortcuts}
-        />
-
-        <Box mt="8" flex="1" minH="0">
-          <IssueActivityThread
-            items={timeline}
-            role={role}
-            currentUser={currentUser}
-            onEditComment={(commentId, body) =>
-              onEditComment(issue.id, commentId, body)
-            }
-            onDeleteComment={(commentId) =>
-              onDeleteComment(issue.id, commentId)
-            }
-            onToggleReaction={(commentId, emoji) =>
-              onToggleReaction(issue.id, commentId, emoji)
-            }
-          />
-        </Box>
-
-        {canComment && (
-          <IssueCommentComposer
-            issueId={issue.id}
-            teamMembers={teamMembers}
-            projectIssues={projectIssues}
-            onSubmit={(body) => onAddComment(issue.id, body)}
-            registerShortcuts={registerShortcuts}
-          />
-        )}
+        {mainColumn}
       </Flex>
 
-      {/* Sidebar ~35% — desktop */}
       <Box
         display={{ base: "none", lg: "block" }}
         flex="0 0 35%"
         minW="0"
         overflowY="auto"
       >
-        <IssueMetadataSidebar
-          issue={issue}
-          editable={editable}
-          currentUser={currentUser}
-          teamMembers={teamMembers}
-          watching={watching}
-          onUpdate={onUpdate}
-          onAddActivity={onAddActivity}
-          onToggleWatch={toggleWatch}
-          onNavigateToProject={onNavigateToProject}
-          pickerOpen={pickerOpen}
-        />
+        <IssueMetadataSidebar {...metadataProps} />
       </Box>
     </Flex>
   );

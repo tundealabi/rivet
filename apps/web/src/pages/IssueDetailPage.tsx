@@ -1,10 +1,11 @@
 import { Box, Button, Flex, Text } from "@chakra-ui/react";
 import { OrganizationRole } from "@rivet/shared";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { PiArrowLeft } from "react-icons/pi";
 import { useNavigate, useParams } from "react-router-dom";
 
+import { getCurrentUserName, isSessionExpiredError } from "../auth-api";
 import { AppSidebar } from "../components/app/AppSidebar";
 import { useLogout } from "../components/app/use-logout";
 import { useActiveOrg } from "../components/billing/use-active-org";
@@ -23,14 +24,15 @@ import type {
 import { IssueDetailContent } from "../components/issues/IssueDetailContent";
 import {
   CommentRateLimitError,
-  fetchIssuesMock,
+  isIssueNotFoundError,
   submitCommentMock,
 } from "../components/issues/issues-api";
+import { MOCK_TEAM_MEMBERS } from "../components/issues/mock-issues-data";
 import {
-  MOCK_CURRENT_USER,
-  MOCK_ISSUES,
-  MOCK_TEAM_MEMBERS,
-} from "../components/issues/mock-issues-data";
+  useDeleteIssueMutation,
+  useIssue,
+  useProjectIssues,
+} from "../components/issues/use-issues-queries";
 import { ProjectNotFoundState } from "../components/projects/ProjectPageStates";
 import { isProjectNotFoundError } from "../components/projects/projects-api";
 import { useProject } from "../components/projects/use-projects-queries";
@@ -45,121 +47,116 @@ export default function IssueDetailPage() {
   const navigate = useNavigate();
   const logout = useLogout();
   const { orgId } = useActiveOrg();
+  const currentUser = getCurrentUserName();
   const projectQuery = useProject(orgId, projectId);
+  const issueQuery = useIssue(orgId, issueId, {
+    enabled: Boolean(orgId && issueId),
+    projectColor: projectQuery.data?.color,
+  });
+  const issuesQuery = useProjectIssues(orgId, projectId, {
+    enabled: Boolean(orgId && projectId && projectQuery.data),
+    projectColor: projectQuery.data?.color,
+  });
+  const deleteIssueMutation = useDeleteIssueMutation(orgId);
 
-  const [issue, setIssue] = useState<Issue | null>(null);
-  const [loadState, setLoadState] = useState<
-    "loading" | "success" | "not_found"
-  >("loading");
+  const listedIssue = useMemo(
+    () =>
+      issuesQuery.data?.find(
+        (candidate) =>
+          candidate.id === issueId && candidate.projectId === projectId
+      ) ?? null,
+    [issuesQuery.data, issueId, projectId]
+  );
+  const remoteIssue = useMemo(() => {
+    if (!issueQuery.data || issueQuery.data.projectId !== projectId) {
+      return null;
+    }
+
+    const projectColor = projectQuery.data?.color;
+    if (projectColor && issueQuery.data.projectColor !== projectColor) {
+      return { ...issueQuery.data, projectColor };
+    }
+
+    return issueQuery.data;
+  }, [issueQuery.data, projectId, projectQuery.data?.color]);
+  const [editedIssue, setEditedIssue] = useState<Issue | null>(null);
+
+  if (editedIssue && (!issueId || editedIssue.id !== issueId)) {
+    setEditedIssue(null);
+  }
+
+  const issue = editedIssue ?? listedIssue ?? remoteIssue;
 
   const projectIssues = useMemo(
     () =>
-      MOCK_ISSUES.filter((candidate) => candidate.projectId === projectId).map(
-        ({ id, projectKey, number, title }) => ({
-          id,
-          projectKey,
-          number,
-          title,
-        })
-      ),
-    [projectId]
+      (issuesQuery.data ?? []).map(({ id, projectKey, number, title }) => ({
+        id,
+        projectKey,
+        number,
+        title,
+      })),
+    [issuesQuery.data]
   );
-
-  const [prevParams, setPrevParams] = useState({ issueId, projectId });
-
-  if (prevParams.projectId !== projectId || prevParams.issueId !== issueId) {
-    setPrevParams({ issueId, projectId });
-    setIssue(null);
-    setLoadState("loading");
-  }
 
   const projectMissing =
     !projectQuery.isPending &&
     (isProjectNotFoundError(projectQuery.error) || !projectQuery.data);
+  const issueMissing =
+    isIssueNotFoundError(issueQuery.error) ||
+    (issueQuery.isSuccess &&
+      !issueQuery.isPlaceholderData &&
+      (!issueQuery.data || issueQuery.data.projectId !== projectId));
   const effectiveLoadState =
-    !projectId || !issueId || projectMissing ? "not_found" : loadState;
-
-  useEffect(() => {
-    if (!projectId || !issueId) return;
-    if (projectQuery.isPending) return;
-    if (isProjectNotFoundError(projectQuery.error) || !projectQuery.data) {
-      return;
-    }
-
-    let cancelled = false;
-
-    const load = async () => {
-      const issues = await fetchIssuesMock(MOCK_ISSUES);
-      if (cancelled) return;
-      const match = issues.find(
-        (candidate) =>
-          candidate.id === issueId && candidate.projectId === projectId
-      );
-
-      if (!match) {
-        setIssue(null);
-        setLoadState("not_found");
-        return;
-      }
-
-      setIssue(match);
-      setLoadState("success");
-    };
-
-    load().catch(() => {
-      if (!cancelled) {
-        setIssue(null);
-        setLoadState("not_found");
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    projectId,
-    issueId,
-    projectQuery.isPending,
-    projectQuery.data,
-    projectQuery.error,
-  ]);
+    !projectId || !issueId || projectMissing || issueMissing
+      ? "not_found"
+      : projectQuery.isPending || (!issue && issueQuery.isPending)
+        ? "loading"
+        : issueQuery.isError || !issue
+          ? "not_found"
+          : "success";
 
   const handleUpdate = (id: string, patch: Partial<Issue>) => {
-    setIssue((prev) => (prev && prev.id === id ? { ...prev, ...patch } : prev));
+    setEditedIssue((prev) => {
+      const base = prev ?? listedIssue ?? remoteIssue;
+      return base && base.id === id ? { ...base, ...patch } : prev;
+    });
+  };
+
+  const patchListedIssue = (
+    targetIssueId: string,
+    updater: (issue: Issue) => Issue
+  ) => {
+    setEditedIssue((prev) => {
+      const base = prev ?? listedIssue ?? remoteIssue;
+      if (!base || base.id !== targetIssueId) return prev;
+      return updater(base);
+    });
   };
 
   const handleAddComment = async (targetIssueId: string, body: string) => {
     const tempId = `pending-${crypto.randomUUID()}`;
-    setIssue((prev) => {
-      if (!prev || prev.id !== targetIssueId) return prev;
-      return applyIssueCommentAdd(
-        prev,
-        body,
-        MOCK_CURRENT_USER,
-        MOCK_TEAM_MEMBERS,
-        { id: tempId, syncStatus: "pending" }
-      );
-    });
+    patchListedIssue(targetIssueId, (issue) =>
+      applyIssueCommentAdd(issue, body, currentUser, MOCK_TEAM_MEMBERS, {
+        id: tempId,
+        syncStatus: "pending",
+      })
+    );
 
     try {
       await submitCommentMock(targetIssueId, body);
-      setIssue((prev) => {
-        if (!prev || prev.id !== targetIssueId) return prev;
-        return {
-          ...prev,
-          comments: prev.comments.map((comment) =>
-            comment.id === tempId
-              ? { ...comment, id: crypto.randomUUID(), syncStatus: undefined }
-              : comment
-          ),
-        };
-      });
+      patchListedIssue(targetIssueId, (issue) => ({
+        ...issue,
+        comments: issue.comments.map((comment) =>
+          comment.id === tempId
+            ? { ...comment, id: crypto.randomUUID(), syncStatus: undefined }
+            : comment
+        ),
+      }));
     } catch (error) {
       if (error instanceof CommentRateLimitError) {
-        setIssue((prev) => {
-          if (!prev || prev.id !== targetIssueId) return prev;
-          const comments = prev.comments.filter((c) => c.id !== tempId);
-          return { ...prev, comments, commentCount: comments.length };
+        patchListedIssue(targetIssueId, (issue) => {
+          const comments = issue.comments.filter((c) => c.id !== tempId);
+          return { ...issue, comments, commentCount: comments.length };
         });
         toast.error(
           "You're posting comments quickly — Pro removes this limit.",
@@ -168,17 +165,12 @@ export default function IssueDetailPage() {
         throw error;
       }
 
-      setIssue((prev) => {
-        if (!prev || prev.id !== targetIssueId) return prev;
-        return {
-          ...prev,
-          comments: prev.comments.map((comment) =>
-            comment.id === tempId
-              ? { ...comment, syncStatus: "failed" }
-              : comment
-          ),
-        };
-      });
+      patchListedIssue(targetIssueId, (issue) => ({
+        ...issue,
+        comments: issue.comments.map((comment) =>
+          comment.id === tempId ? { ...comment, syncStatus: "failed" } : comment
+        ),
+      }));
       throw error;
     }
   };
@@ -187,10 +179,9 @@ export default function IssueDetailPage() {
     targetIssueId: string,
     event: IssueActivityEvent
   ) => {
-    setIssue((prev) => {
-      if (!prev || prev.id !== targetIssueId) return prev;
-      return applyIssueActivityAdd(prev, event);
-    });
+    patchListedIssue(targetIssueId, (issue) =>
+      applyIssueActivityAdd(issue, event)
+    );
   };
 
   const handleEditComment = (
@@ -198,17 +189,15 @@ export default function IssueDetailPage() {
     commentId: string,
     body: string
   ) => {
-    setIssue((prev) => {
-      if (!prev || prev.id !== targetIssueId) return prev;
-      return applyIssueCommentEdit(prev, commentId, body);
-    });
+    patchListedIssue(targetIssueId, (issue) =>
+      applyIssueCommentEdit(issue, commentId, body)
+    );
   };
 
   const handleDeleteComment = (targetIssueId: string, commentId: string) => {
-    setIssue((prev) => {
-      if (!prev || prev.id !== targetIssueId) return prev;
-      return applyIssueCommentDelete(prev, commentId);
-    });
+    patchListedIssue(targetIssueId, (issue) =>
+      applyIssueCommentDelete(issue, commentId)
+    );
   };
 
   const handleToggleReaction = (
@@ -216,15 +205,22 @@ export default function IssueDetailPage() {
     commentId: string,
     emoji: string
   ) => {
-    setIssue((prev) => {
-      if (!prev || prev.id !== targetIssueId) return prev;
-      return applyIssueReactionToggle(prev, commentId, emoji);
-    });
+    patchListedIssue(targetIssueId, (issue) =>
+      applyIssueReactionToggle(issue, commentId, emoji)
+    );
   };
 
-  const handleDelete = (id: string) => {
-    if (issue?.id === id) {
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteIssueMutation.mutateAsync([id]);
+      toast.success("Issue deleted");
       void navigate(`/projects/${projectId}`);
+    } catch (error) {
+      if (isSessionExpiredError(error)) return;
+      toast.error(
+        error instanceof Error ? error.message : "Couldn't delete this issue"
+      );
+      throw error;
     }
   };
 
@@ -288,7 +284,7 @@ export default function IssueDetailPage() {
               issue={issue}
               variant="page"
               role={MOCK_ROLE}
-              currentUser={MOCK_CURRENT_USER}
+              currentUser={currentUser}
               teamMembers={MOCK_TEAM_MEMBERS}
               projectIssues={projectIssues}
               onUpdate={handleUpdate}

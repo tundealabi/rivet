@@ -1,6 +1,5 @@
 import { Box, Button, Dialog, Flex, Text } from "@chakra-ui/react";
 import { useState } from "react";
-import toast from "react-hot-toast";
 
 import {
   formatProjectIssueKey,
@@ -13,7 +12,7 @@ import { EASE_OUT } from "./issues-motion";
 interface IssueDetailDrawerFooterProps {
   issue: Issue;
   deletable: boolean;
-  onDelete: () => void;
+  onDelete: () => void | Promise<void>;
 }
 
 export function IssueDetailDrawerFooter({
@@ -22,6 +21,7 @@ export function IssueDetailDrawerFooter({
   onDelete,
 }: IssueDetailDrawerFooterProps) {
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const issueKey = formatProjectIssueKey(issue);
   const updatedBy = getLastUpdatedBy(issue);
 
@@ -32,8 +32,8 @@ export function IssueDetailDrawerFooter({
         justify="space-between"
         gap="3"
         px="4"
-        py="2"
-        minH="9"
+        py="3"
+        minH="11"
         borderTopWidth="1px"
         borderColor="border.default"
         bg="bg.surface"
@@ -47,15 +47,15 @@ export function IssueDetailDrawerFooter({
           <Box
             as="button"
             fontSize="xs"
-            fontWeight="medium"
-            color="red.400"
+            fontWeight="bold"
+            color="status.error"
             flexShrink="0"
             bg="transparent"
             border="none"
             cursor="pointer"
             p="0"
             transition="color 0.15s ease"
-            _hover={{ color: "red.500" }}
+            _hover={{ color: "red.700" }}
             onClick={() => setDeleteOpen(true)}
           >
             Delete issue
@@ -65,7 +65,10 @@ export function IssueDetailDrawerFooter({
 
       <Dialog.Root
         open={deleteOpen}
-        onOpenChange={(e) => setDeleteOpen(e.open)}
+        onOpenChange={(e) => {
+          if (!e.open && deleting) return;
+          setDeleteOpen(e.open);
+        }}
         placement="center"
       >
         <Dialog.Backdrop bg="blackAlpha.600" backdropFilter="blur(4px)" />
@@ -91,6 +94,7 @@ export function IssueDetailDrawerFooter({
               <Button
                 variant="outline"
                 borderRadius="control"
+                disabled={deleting}
                 onClick={() => setDeleteOpen(false)}
               >
                 Cancel
@@ -99,11 +103,20 @@ export function IssueDetailDrawerFooter({
                 borderRadius="control"
                 bg="status.error"
                 color="white"
+                loading={deleting}
                 _hover={{ bg: "red.600" }}
                 onClick={() => {
-                  setDeleteOpen(false);
-                  onDelete();
-                  toast.success("Issue deleted");
+                  void (async () => {
+                    try {
+                      setDeleting(true);
+                      await onDelete();
+                      setDeleteOpen(false);
+                    } catch {
+                      // Page handler already surfaced the error.
+                    } finally {
+                      setDeleting(false);
+                    }
+                  })();
                 }}
               >
                 Delete issue

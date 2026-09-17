@@ -1,23 +1,11 @@
-import {
-  Box,
-  Button,
-  Dialog,
-  Field,
-  Flex,
-  HStack,
-  Input,
-  NativeSelect,
-  Stack,
-  Text,
-  Textarea,
-} from "@chakra-ui/react";
+import { Box, Flex } from "@chakra-ui/react";
 import { OrganizationRole } from "@rivet/shared";
 import { useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { Outlet, useMatch, useNavigate, useParams } from "react-router-dom";
 
-import { isSessionExpiredError } from "../auth-api";
+import { getCurrentUserName, isSessionExpiredError } from "../auth-api";
 import { AppSidebar } from "../components/app/AppSidebar";
 import { useLogout } from "../components/app/use-logout";
 import { useActiveOrg } from "../components/billing/use-active-org";
@@ -43,16 +31,15 @@ import {
 import {
   IssueFilterBar,
   type IssueFilters,
-  type IssuePriority,
   type IssueStatus,
 } from "../components/issues/IssueFilterBar";
 import {
   CommentRateLimitError,
-  fetchIssuesMock,
   refetchIssuesMock,
   submitCommentMock,
 } from "../components/issues/issues-api";
-import { EASE_OUT, fadeInUp } from "../components/issues/issues-motion";
+import { fadeInUp } from "../components/issues/issues-motion";
+import { issuesQueryKeys } from "../components/issues/issues-query-keys";
 import { IssuesBoardView } from "../components/issues/IssuesBoardView";
 import {
   IssuesErrorState,
@@ -62,21 +49,25 @@ import {
   ProjectIssuesEmptyState,
 } from "../components/issues/IssuesPageStates";
 import { IssuesTableView } from "../components/issues/IssuesTableView";
-import { IssueStatusSelect } from "../components/issues/IssueStatusSelect";
 import {
   type IssuesViewMode,
   IssuesViewToggle,
 } from "../components/issues/IssuesViewToggle";
+import { MOCK_TEAM_MEMBERS } from "../components/issues/mock-issues-data";
+import { NewIssueDialog } from "../components/issues/NewIssueDialog";
 import {
-  MOCK_CURRENT_USER,
-  MOCK_ISSUES,
-  MOCK_TEAM_MEMBERS,
-} from "../components/issues/mock-issues-data";
+  useDeleteIssueMutation,
+  useProjectIssues,
+  useProjectIssueSummary,
+} from "../components/issues/use-issues-queries";
 import {
   canCreateProjectIssues,
   canManageProject,
 } from "../components/projects/project-permissions";
-import { computeProjectStats } from "../components/projects/project-stats";
+import {
+  applyIssueSummaryToProjectStats,
+  computeProjectStats,
+} from "../components/projects/project-stats";
 import type { Project } from "../components/projects/project-types";
 import { ProjectDetailHeader } from "../components/projects/ProjectDetailHeader";
 import {
@@ -108,210 +99,6 @@ type IssuesLoadState = "loading" | "success" | "error";
 
 const MOCK_ROLE = OrganizationRole.ADMIN;
 
-interface ProjectNewIssueDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  project: Project;
-  onCreate: (issue: Issue) => void;
-  nextNumber: number;
-  initialStatus?: IssueStatus;
-}
-
-function ProjectNewIssueDialog({
-  open,
-  onOpenChange,
-  project,
-  onCreate,
-  nextNumber,
-  initialStatus,
-}: ProjectNewIssueDialogProps) {
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [priority, setPriority] = useState<IssuePriority>("medium");
-  const [status, setStatus] = useState<IssueStatus>("todo");
-  const [titleError, setTitleError] = useState("");
-
-  const [prevOpen, setPrevOpen] = useState(open);
-  if (prevOpen !== open) {
-    setPrevOpen(open);
-    if (open) setStatus(initialStatus ?? "todo");
-  }
-
-  const reset = () => {
-    setTitle("");
-    setDescription("");
-    setPriority("medium");
-    setStatus("todo");
-    setTitleError("");
-  };
-
-  const handleCreate = () => {
-    if (!title.trim()) {
-      setTitleError("Please enter a title");
-      return;
-    }
-
-    onCreate({
-      id: crypto.randomUUID(),
-      number: nextNumber,
-      title: title.trim(),
-      description: description.trim(),
-      status,
-      priority,
-      assignee: MOCK_CURRENT_USER,
-      assigneeInitials: "AL",
-      reporter: MOCK_CURRENT_USER,
-      reporterInitials: "AL",
-      projectId: project.id,
-      projectKey: project.key,
-      projectName: project.name,
-      projectColor: project.color,
-      comments: [],
-      commentCount: 0,
-      activity: [
-        {
-          id: crypto.randomUUID(),
-          type: "created",
-          actor: MOCK_CURRENT_USER,
-          createdAt: new Date(),
-        },
-      ],
-      labels: [],
-      watchers: [MOCK_CURRENT_USER],
-      dueDate: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
-    reset();
-    onOpenChange(false);
-    toast.success("Issue created");
-  };
-
-  return (
-    <Dialog.Root
-      open={open}
-      onOpenChange={(e) => {
-        if (!e.open) reset();
-        onOpenChange(e.open);
-      }}
-      placement="center"
-    >
-      <Dialog.Backdrop bg="blackAlpha.600" backdropFilter="blur(4px)" />
-      <Dialog.Positioner>
-        <Dialog.Content
-          bg="bg.surface"
-          borderRadius="card"
-          maxW="md"
-          w="full"
-          mx="4"
-          boxShadow="elevated"
-          animation={`rivet-scale-in 0.28s ${EASE_OUT} both`}
-        >
-          <Dialog.Header pt="6" px="6" pb="0">
-            <Dialog.Title color="fg.primary">New issue</Dialog.Title>
-          </Dialog.Header>
-          <Dialog.Body px="6" py="5">
-            <Stack gap="4">
-              <HStack
-                gap="2"
-                px="3"
-                py="2"
-                borderRadius="control"
-                bg="bg.surfaceHover"
-                borderWidth="1px"
-                borderColor="border.default"
-              >
-                <Box boxSize="2.5" borderRadius="sm" bg={project.color} />
-                <Text fontSize="sm" color="fg.secondary">
-                  {project.name}{" "}
-                  <Text as="span" fontFamily="mono" color="fg.muted">
-                    ({project.key})
-                  </Text>
-                </Text>
-              </HStack>
-
-              <Field.Root invalid={!!titleError}>
-                <Field.Label color="fg.primary">Title</Field.Label>
-                <Input
-                  placeholder="What needs to be done?"
-                  borderRadius="control"
-                  value={title}
-                  onChange={(e) => {
-                    setTitle(e.target.value);
-                    if (titleError && e.target.value.trim()) setTitleError("");
-                  }}
-                  autoFocus
-                />
-                <Field.ErrorText>{titleError}</Field.ErrorText>
-              </Field.Root>
-
-              <Field.Root>
-                <Field.Label color="fg.primary">
-                  Description{" "}
-                  <Text as="span" color="fg.muted" fontWeight="normal">
-                    (optional)
-                  </Text>
-                </Field.Label>
-                <Textarea
-                  placeholder="Add more context…"
-                  borderRadius="control"
-                  rows={3}
-                  resize="none"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                />
-              </Field.Root>
-
-              <HStack gap="4" align="flex-start">
-                <Field.Root flex="1">
-                  <Field.Label color="fg.primary">Priority</Field.Label>
-                  <NativeSelect.Root size="sm">
-                    <NativeSelect.Field
-                      borderRadius="control"
-                      value={priority}
-                      onChange={(e) =>
-                        setPriority(e.target.value as IssuePriority)
-                      }
-                    >
-                      <option value="low">Low</option>
-                      <option value="medium">Medium</option>
-                      <option value="high">High</option>
-                      <option value="critical">Critical</option>
-                    </NativeSelect.Field>
-                  </NativeSelect.Root>
-                </Field.Root>
-
-                <Field.Root flex="1">
-                  <Field.Label color="fg.primary">Status</Field.Label>
-                  <IssueStatusSelect value={status} onChange={setStatus} />
-                </Field.Root>
-              </HStack>
-            </Stack>
-          </Dialog.Body>
-          <Dialog.Footer px="6" pb="6" pt="0" gap="3">
-            <Button
-              variant="outline"
-              borderRadius="control"
-              onClick={() => onOpenChange(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              borderRadius="control"
-              bg="accent.default"
-              color="white"
-              _hover={{ bg: "accent.hover" }}
-              onClick={handleCreate}
-            >
-              Create issue
-            </Button>
-          </Dialog.Footer>
-        </Dialog.Content>
-      </Dialog.Positioner>
-    </Dialog.Root>
-  );
-}
-
 export default function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const issueMatch = useMatch("/projects/:projectId/issues/:issueId");
@@ -320,12 +107,14 @@ export default function ProjectDetailPage() {
   const logout = useLogout();
   const queryClient = useQueryClient();
   const { orgId, orgsStatus } = useActiveOrg();
+  const currentUser = getCurrentUserName();
   const projectQuery = useProject(orgId, projectId);
   const project = projectQuery.data ?? null;
   const archiveMutation = useArchiveProjectMutation(orgId);
   const unarchiveMutation = useUnarchiveProjectMutation(orgId);
   const updateMutation = useUpdateProjectMutation(orgId);
   const deleteMutation = useDeleteProjectMutation(orgId);
+  const deleteIssueMutation = useDeleteIssueMutation(orgId);
   const archivePending =
     archiveMutation.isPending || unarchiveMutation.isPending;
   const deletePending = deleteMutation.isPending;
@@ -345,9 +134,24 @@ export default function ProjectDetailPage() {
               ? "loading"
               : "error";
 
-  const [issues, setIssues] = useState<Issue[]>([]);
-  const [issuesLoadState, setIssuesLoadState] =
-    useState<IssuesLoadState>("loading");
+  const issuesQuery = useProjectIssues(orgId, projectId, {
+    enabled: projectLoadState === "success",
+    projectColor: project?.color,
+  });
+  const summaryQuery = useProjectIssueSummary(orgId, projectId, {
+    enabled: projectLoadState === "success",
+  });
+  const issues: Issue[] = useMemo(
+    () => issuesQuery.data ?? [],
+    [issuesQuery.data]
+  );
+  const issuesKey = issuesQueryKeys.projectList(orgId, projectId ?? "");
+  const issuesLoadState: IssuesLoadState =
+    projectLoadState !== "success" || issuesQuery.isPending
+      ? "loading"
+      : issuesQuery.isError
+        ? "error"
+        : "success";
   const [isRefetching, setIsRefetching] = useState(false);
   const [filters, setFilters] = useState<IssueFilters>(EMPTY_FILTERS);
   const [activeTab, setActiveTab] = useState<ProjectDetailTab>("issues");
@@ -361,12 +165,10 @@ export default function ProjectDetailPage() {
   const canManage = canManageProject(MOCK_ROLE);
   const canDelete = canDeleteIssues(MOCK_ROLE);
 
-  // Reset issue state when navigating between projects.
+  // Reset selection when navigating between projects.
   const [trackedProjectId, setTrackedProjectId] = useState(projectId);
   if (trackedProjectId !== projectId) {
     setTrackedProjectId(projectId);
-    setIssues([]);
-    setIssuesLoadState("loading");
     setSelectedIds(new Set());
   }
 
@@ -385,31 +187,30 @@ export default function ProjectDetailPage() {
     if (issueId) setActiveTab("issues");
   }
 
-  const loadIssues = useCallback(() => {
-    if (!projectId) return;
-    fetchIssuesMock(MOCK_ISSUES)
-      .then((data) => {
-        setIssues(data.filter((issue) => issue.projectId === projectId));
-        setIssuesLoadState("success");
-      })
-      .catch(() => setIssuesLoadState("error"));
-  }, [projectId]);
-
   const retryIssues = () => {
-    setIssuesLoadState("loading");
-    loadIssues();
+    void issuesQuery.refetch();
   };
 
-  useEffect(() => {
-    if (projectLoadState !== "success") return;
-    loadIssues();
-  }, [projectLoadState, loadIssues]);
+  const setIssues = useCallback(
+    (updater: (prev: Issue[]) => Issue[]) => {
+      queryClient.setQueryData<Issue[]>(issuesKey, (prev) =>
+        updater(prev ?? [])
+      );
+    },
+    [issuesKey, queryClient]
+  );
 
-  const projectStats = useMemo(() => computeProjectStats(issues), [issues]);
+  const computedStats = useMemo(() => computeProjectStats(issues), [issues]);
+  const projectStats = useMemo(() => {
+    if (issuesLoadState === "success" || !summaryQuery.data) {
+      return computedStats;
+    }
+    return applyIssueSummaryToProjectStats(computedStats, summaryQuery.data);
+  }, [computedStats, issuesLoadState, summaryQuery.data]);
 
   const filteredIssues = useMemo(
-    () => filterIssues(issues, filters, MOCK_CURRENT_USER),
-    [issues, filters]
+    () => filterIssues(issues, filters, currentUser),
+    [issues, filters, currentUser]
   );
 
   const filtersActive = hasActiveFilters(filters);
@@ -426,11 +227,6 @@ export default function ProjectDetailPage() {
     [issuesLoadState]
   );
 
-  const nextIssueNumber = useMemo(
-    () => Math.max(0, ...issues.map((i) => i.number)) + 1,
-    [issues]
-  );
-
   const openNewIssueDialog = (status?: IssueStatus) => {
     setDialogStatus(status);
     setDialogOpen(true);
@@ -444,26 +240,42 @@ export default function ProjectDetailPage() {
     setIssues((prev) =>
       prev.map((issue) => (issue.id === id ? updater(issue) : issue))
     );
-  };
-
-  const handleIssueUpdate = (id: string, patch: Partial<Issue>) => {
-    setIssues((prev) =>
-      prev.map((issue) => (issue.id === id ? { ...issue, ...patch } : issue))
+    queryClient.setQueryData<Issue>(
+      issuesQueryKeys.detail(orgId, id),
+      (prev) => (prev ? updater(prev) : prev)
     );
   };
 
-  const handleIssuesDelete = (ids: string[]) => {
-    const idSet = new Set(ids);
-    setIssues((prev) => prev.filter((issue) => !idSet.has(issue.id)));
-    if (issueId && idSet.has(issueId)) {
-      void navigate(`/projects/${projectId}`);
+  const handleIssueUpdate = (id: string, patch: Partial<Issue>) => {
+    patchIssue(id, (issue) => ({ ...issue, ...patch }));
+  };
+
+  const handleIssuesDelete = async (ids: string[]) => {
+    try {
+      const { deleted, errors } = await deleteIssueMutation.mutateAsync(ids);
+      if (issueId && deleted.some((issue) => issue.id === issueId)) {
+        void navigate(`/projects/${projectId}`);
+      }
+      if (errors.length > 0) {
+        toast.error(`Deleted ${deleted.length} of ${ids.length} issues`);
+        return;
+      }
+      toast.success(
+        ids.length === 1 ? "Issue deleted" : `Deleted ${ids.length} issues`
+      );
+    } catch (error) {
+      if (isSessionExpiredError(error)) return;
+      toast.error(
+        error instanceof Error ? error.message : "Couldn't delete this issue"
+      );
+      throw error;
     }
   };
 
   const handleAddComment = async (targetIssueId: string, body: string) => {
     const tempId = `pending-${crypto.randomUUID()}`;
     patchIssue(targetIssueId, (issue) =>
-      applyIssueCommentAdd(issue, body, MOCK_CURRENT_USER, MOCK_TEAM_MEMBERS, {
+      applyIssueCommentAdd(issue, body, currentUser, MOCK_TEAM_MEMBERS, {
         id: tempId,
         syncStatus: "pending",
       })
@@ -674,7 +486,7 @@ export default function ProjectDetailPage() {
 
     if (activeTab === "settings") {
       return (
-        <Box px={{ base: "5", md: "10" }} py="8">
+        <Box px={{ base: "5", md: "10" }} pt="4" pb="8">
           <ProjectSettingsTab
             project={project}
             role={MOCK_ROLE}
@@ -707,13 +519,17 @@ export default function ProjectDetailPage() {
           <IssuesViewToggle value={viewMode} onChange={setViewMode} />
         </Flex>
 
-        <IssuesRefetchBar active={isRefetching} />
+        <IssuesRefetchBar
+          active={
+            isRefetching || (issuesQuery.isFetching && !issuesQuery.isPending)
+          }
+        />
         <IssueFilterBar
           filters={filters}
           onChange={handleFiltersChange}
           projects={[]}
           teamMembers={MOCK_TEAM_MEMBERS}
-          currentUserName={MOCK_CURRENT_USER}
+          currentUserName={currentUser}
           hideProjectFilter
         />
 
@@ -756,7 +572,7 @@ export default function ProjectDetailPage() {
             value={{
               issues,
               role: MOCK_ROLE,
-              currentUser: MOCK_CURRENT_USER,
+              currentUser: currentUser,
               teamMembers: MOCK_TEAM_MEMBERS,
               onUpdate: handleIssueUpdate,
               onAddComment: handleAddComment,
@@ -776,7 +592,11 @@ export default function ProjectDetailPage() {
             <ProjectDetailHeader
               project={project}
               stats={projectStats}
-              statsLoading={issuesLoadState === "loading"}
+              statsLoading={
+                issuesLoadState === "loading" &&
+                summaryQuery.isPending &&
+                !summaryQuery.data
+              }
               canEdit={canEdit}
               canCreateIssue={canCreate}
               canManage={canManage}
@@ -803,15 +623,29 @@ export default function ProjectDetailPage() {
 
             <Outlet />
 
-            <ProjectNewIssueDialog
+            <NewIssueDialog
               open={dialogOpen}
               onOpenChange={(open) => {
                 setDialogOpen(open);
                 if (!open) setDialogStatus(undefined);
               }}
-              project={project}
-              onCreate={(issue) => setIssues((prev) => [issue, ...prev])}
-              nextNumber={nextIssueNumber}
+              orgId={orgId}
+              projects={[
+                {
+                  id: project.id,
+                  name: project.name,
+                  key: project.key,
+                  color: project.color,
+                },
+              ]}
+              lockedProjectId={project.id}
+              onCreated={(issue) =>
+                setIssues((prev) =>
+                  prev.some((item) => item.id === issue.id)
+                    ? prev
+                    : [issue, ...prev]
+                )
+              }
               initialStatus={dialogStatus}
             />
           </IssueDetailProvider>

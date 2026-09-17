@@ -34,9 +34,9 @@ function SettingsSection({
   children: React.ReactNode;
 }) {
   return (
-    <Box py="8">
+    <Box pt="0" pb="8">
       <Heading
-        size="sm"
+        size="lg"
         color="fg.primary"
         mb={description ? "1" : "5"}
         letterSpacing="-0.01em"
@@ -412,7 +412,9 @@ export function ProjectSettingsTab({
       <SettingsSection title="General">
         <Stack gap="4">
           <Field.Root>
-            <Field.Label color="fg.primary">Project name</Field.Label>
+            <Field.Label color="accent.default" textTransform="capitalize">
+              Project name
+            </Field.Label>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -421,7 +423,9 @@ export function ProjectSettingsTab({
           </Field.Root>
 
           <Field.Root>
-            <Field.Label color="fg.primary">Project key</Field.Label>
+            <Field.Label color="accent.default" textTransform="capitalize">
+              Project key
+            </Field.Label>
             <Input
               value={key}
               onChange={(e) => setKey(e.target.value.toUpperCase().slice(0, 5))}
@@ -446,7 +450,9 @@ export function ProjectSettingsTab({
           </Field.Root>
 
           <Field.Root>
-            <Field.Label color="fg.primary">Description</Field.Label>
+            <Field.Label color="accent.default" textTransform="capitalize">
+              Description
+            </Field.Label>
             <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}

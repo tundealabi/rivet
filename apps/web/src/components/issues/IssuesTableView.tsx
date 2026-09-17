@@ -3,10 +3,13 @@ import {
   Box,
   Button,
   Checkbox,
+  Dialog,
   Flex,
   HStack,
   IconButton,
+  Menu,
   Popover,
+  Portal,
   Stack,
   Table,
   Text,
@@ -21,6 +24,7 @@ import {
   PiTrash,
 } from "react-icons/pi";
 
+import { useActiveOrg } from "../billing/use-active-org";
 import { STATUS_OPTIONS } from "./issue-filters";
 import {
   formatIssueKey,
@@ -33,7 +37,9 @@ import {
   type TeamMember,
 } from "./issue-types";
 import type { IssueStatus } from "./IssueFilterBar";
+import { IssueConflictError, issueFieldsFromUpdate } from "./issues-api";
 import { EASE_OUT, stagger, transition } from "./issues-motion";
+import { useUpdateIssueMutation } from "./use-issues-queries";
 
 const PAGE_SIZE = 50;
 
@@ -41,7 +47,7 @@ const STATUS_LABELS = Object.fromEntries(
   STATUS_OPTIONS.map((o) => [o.value, o.label])
 );
 
-function stopRowClick(e: React.MouseEvent) {
+function stopRowClick(e: React.SyntheticEvent) {
   e.stopPropagation();
 }
 
@@ -146,47 +152,62 @@ function InlineStatusPicker({
   onChange: (status: IssueStatus) => void;
 }) {
   return (
-    <Popover.Root positioning={{ placement: "bottom-start" }}>
-      <Popover.Trigger asChild>
-        <Box as="span" display="inline-flex" onClick={stopRowClick}>
-          <StatusPill status={status} />
-        </Box>
-      </Popover.Trigger>
-      <Popover.Positioner>
-        <Popover.Content
-          bg="bg.surface"
-          borderWidth="1px"
-          borderColor="border.default"
-          borderRadius="control"
-          boxShadow="hover"
-          p="1"
-          minW="40"
-          zIndex="popover"
+    <Menu.Root
+      positioning={{
+        placement: "bottom-start",
+        strategy: "fixed",
+        gutter: 4,
+      }}
+    >
+      <Menu.Trigger asChild>
+        <Button
+          type="button"
+          unstyled
+          display="inline-flex"
+          onClick={stopRowClick}
+          onPointerDown={stopRowClick}
         >
-          <Stack gap="0">
+          <StatusPill status={status} />
+        </Button>
+      </Menu.Trigger>
+      <Portal>
+        <Menu.Positioner style={{ zIndex: 1500 }}>
+          <Menu.Content
+            bg="bg.surface"
+            borderWidth="1px"
+            borderColor="border.default"
+            borderRadius="control"
+            boxShadow="elevated"
+            p="1"
+            minW="44"
+            w="max-content"
+            overflow="hidden"
+          >
             {STATUS_OPTIONS.map((option) => (
-              <Button
+              <Menu.Item
                 key={option.value}
-                variant="ghost"
-                size="sm"
-                justifyContent="flex-start"
+                value={option.value}
                 borderRadius="control"
                 fontWeight={status === option.value ? "semibold" : "normal"}
+                bg={status === option.value ? "brand.subtle" : "transparent"}
+                whiteSpace="nowrap"
                 onClick={() => onChange(option.value)}
               >
-                <Box
-                  boxSize="2"
-                  borderRadius="full"
-                  bg={STATUS_DOT_COLOR[option.value]}
-                  mr="2"
-                />
-                {option.label}
-              </Button>
+                <HStack gap="2">
+                  <Box
+                    boxSize="2"
+                    borderRadius="full"
+                    bg={STATUS_DOT_COLOR[option.value]}
+                    flexShrink="0"
+                  />
+                  <Text fontSize="sm">{option.label}</Text>
+                </HStack>
+              </Menu.Item>
             ))}
-          </Stack>
-        </Popover.Content>
-      </Popover.Positioner>
-    </Popover.Root>
+          </Menu.Content>
+        </Menu.Positioner>
+      </Portal>
+    </Menu.Root>
   );
 }
 
@@ -202,53 +223,63 @@ function InlineAssigneePicker({
   const member = memberByName(members, assignee);
 
   return (
-    <Popover.Root positioning={{ placement: "bottom-start" }}>
+    <Popover.Root
+      positioning={{ placement: "bottom-start", strategy: "fixed", gutter: 4 }}
+    >
       <Popover.Trigger asChild>
-        <Box as="span" display="inline-flex" onClick={stopRowClick}>
+        <Box
+          as="span"
+          display="inline-flex"
+          onClick={stopRowClick}
+          onPointerDown={stopRowClick}
+        >
           <AssigneeAvatar
             assignee={assignee}
             initials={member?.initials ?? null}
           />
         </Box>
       </Popover.Trigger>
-      <Popover.Positioner>
-        <Popover.Content
-          bg="bg.surface"
-          borderWidth="1px"
-          borderColor="border.default"
-          borderRadius="control"
-          boxShadow="hover"
-          p="1"
-          minW="44"
-          zIndex="popover"
-        >
-          <Stack gap="0">
-            <Button
-              variant="ghost"
-              size="sm"
-              justifyContent="flex-start"
-              borderRadius="control"
-              onClick={() => onChange(null)}
-            >
-              Unassigned
-            </Button>
-            {members.map((m) => (
+      <Portal>
+        <Popover.Positioner style={{ zIndex: 1500 }}>
+          <Popover.Content
+            bg="bg.surface"
+            borderWidth="1px"
+            borderColor="border.default"
+            borderRadius="control"
+            boxShadow="hover"
+            p="1"
+            minW="44"
+            w="max-content"
+            overflow="hidden"
+          >
+            <Stack gap="0">
               <Button
-                key={m.name}
                 variant="ghost"
                 size="sm"
                 justifyContent="flex-start"
                 borderRadius="control"
-                fontWeight={assignee === m.name ? "semibold" : "normal"}
-                onClick={() => onChange(m.name)}
+                onClick={() => onChange(null)}
               >
-                <AssigneeAvatar assignee={m.name} initials={m.initials} />
-                <Text ml="2">{m.name}</Text>
+                Unassigned
               </Button>
-            ))}
-          </Stack>
-        </Popover.Content>
-      </Popover.Positioner>
+              {members.map((m) => (
+                <Button
+                  key={m.name}
+                  variant="ghost"
+                  size="sm"
+                  justifyContent="flex-start"
+                  borderRadius="control"
+                  fontWeight={assignee === m.name ? "semibold" : "normal"}
+                  onClick={() => onChange(m.name)}
+                >
+                  <AssigneeAvatar assignee={m.name} initials={m.initials} />
+                  <Text ml="2">{m.name}</Text>
+                </Button>
+              ))}
+            </Stack>
+          </Popover.Content>
+        </Popover.Positioner>
+      </Portal>
     </Popover.Root>
   );
 }
@@ -260,6 +291,7 @@ interface BulkActionBarProps {
   onDelete: () => void;
   members: TeamMember[];
   canDelete: boolean;
+  deleting?: boolean;
 }
 
 function BulkActionBar({
@@ -269,6 +301,7 @@ function BulkActionBar({
   onDelete,
   members,
   canDelete,
+  deleting = false,
 }: BulkActionBarProps) {
   return (
     <Flex
@@ -391,6 +424,7 @@ function BulkActionBar({
             size="sm"
             variant="ghost"
             color="white"
+            loading={deleting}
             _hover={{ bg: "whiteAlpha.200" }}
             onClick={onDelete}
           >
@@ -409,7 +443,7 @@ interface IssuesTableViewProps {
   onSelectedIdsChange: (ids: Set<string>) => void;
   onIssueClick: (issue: Issue) => void;
   onIssueUpdate: (id: string, patch: Partial<Issue>) => void;
-  onIssuesDelete: (ids: string[]) => void;
+  onIssuesDelete: (ids: string[]) => void | Promise<void>;
   canDelete: boolean;
   hideProjectColumn?: boolean;
 }
@@ -425,7 +459,11 @@ export function IssuesTableView({
   canDelete,
   hideProjectColumn = false,
 }: IssuesTableViewProps) {
+  const { orgId } = useActiveOrg();
+  const updateMutation = useUpdateIssueMutation(orgId);
   const [page, setPage] = useState(1);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const total = issues.length;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -462,9 +500,78 @@ export function IssuesTableView({
     onSelectedIdsChange(next);
   };
 
+  const persistStatus = (issue: Issue, status: IssueStatus) => {
+    if (status === issue.status) return;
+    const previousStatus = issue.status;
+    const previousUpdatedAt = issue.updatedAt;
+    onIssueUpdate(issue.id, { status, updatedAt: new Date() });
+    void (async () => {
+      try {
+        const updated = await updateMutation.mutateAsync({
+          issueId: issue.id,
+          input: { expectedStatus: previousStatus, status },
+        });
+        onIssueUpdate(issue.id, issueFieldsFromUpdate(updated));
+      } catch (error) {
+        onIssueUpdate(issue.id, {
+          status: previousStatus,
+          updatedAt: previousUpdatedAt,
+        });
+        toast.error(
+          error instanceof IssueConflictError
+            ? error.message
+            : "Couldn't update status — please try again"
+        );
+      }
+    })();
+  };
+
+  const persistAssignee = (issue: Issue, assignee: string | null) => {
+    if (assignee === issue.assignee) return;
+    const member = memberByName(teamMembers, assignee);
+    const nextAssigneeId = assignee === null ? null : member?.id;
+    const previous = {
+      assignee: issue.assignee,
+      assigneeId: issue.assigneeId,
+      assigneeInitials: issue.assigneeInitials,
+      updatedAt: issue.updatedAt,
+    };
+    onIssueUpdate(issue.id, {
+      assignee,
+      assigneeId: nextAssigneeId ?? null,
+      assigneeInitials: member?.initials ?? null,
+      updatedAt: new Date(),
+    });
+
+    if (assignee !== null && nextAssigneeId === undefined) {
+      return;
+    }
+
+    void (async () => {
+      try {
+        const updated = await updateMutation.mutateAsync({
+          issueId: issue.id,
+          input: {
+            assigneeId: nextAssigneeId ?? null,
+            expectedAssigneeId: issue.assigneeId ?? null,
+          },
+        });
+        onIssueUpdate(issue.id, issueFieldsFromUpdate(updated));
+      } catch (error) {
+        onIssueUpdate(issue.id, previous);
+        toast.error(
+          error instanceof IssueConflictError
+            ? error.message
+            : "Couldn't update assignee — please try again"
+        );
+      }
+    })();
+  };
+
   const handleBulkStatus = (status: IssueStatus) => {
     selectedIds.forEach((id) => {
-      onIssueUpdate(id, { status, updatedAt: new Date() });
+      const issue = issues.find((item) => item.id === id);
+      if (issue) persistStatus(issue, status);
     });
     toast.success(`Updated status for ${selectedIds.size} issues`);
     onSelectedIdsChange(new Set());
@@ -472,21 +579,29 @@ export function IssuesTableView({
 
   const handleBulkAssign = (assignee: string | null) => {
     selectedIds.forEach((id) => {
-      const member = memberByName(teamMembers, assignee);
-      onIssueUpdate(id, {
-        assignee,
-        assigneeInitials: member?.initials ?? null,
-        updatedAt: new Date(),
-      });
+      const issue = issues.find((item) => item.id === id);
+      if (issue) persistAssignee(issue, assignee);
     });
     toast.success(`Updated assignee for ${selectedIds.size} issues`);
     onSelectedIdsChange(new Set());
   };
 
   const handleBulkDelete = () => {
-    onIssuesDelete([...selectedIds]);
-    toast.success(`Deleted ${selectedIds.size} issues`);
-    onSelectedIdsChange(new Set());
+    setDeleteOpen(true);
+  };
+
+  const confirmBulkDelete = async () => {
+    const ids = [...selectedIds];
+    try {
+      setDeleting(true);
+      await onIssuesDelete(ids);
+      onSelectedIdsChange(new Set());
+      setDeleteOpen(false);
+    } catch {
+      // Page handler already surfaced the error.
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return (
@@ -601,12 +716,7 @@ export function IssuesTableView({
                   <Table.Cell onClick={stopRowClick}>
                     <InlineStatusPicker
                       status={issue.status}
-                      onChange={(status) =>
-                        onIssueUpdate(issue.id, {
-                          status,
-                          updatedAt: new Date(),
-                        })
-                      }
+                      onChange={(status) => persistStatus(issue, status)}
                     />
                   </Table.Cell>
                   <Table.Cell>
@@ -617,14 +727,9 @@ export function IssuesTableView({
                       <InlineAssigneePicker
                         assignee={issue.assignee}
                         members={teamMembers}
-                        onChange={(assignee) => {
-                          const member = memberByName(teamMembers, assignee);
-                          onIssueUpdate(issue.id, {
-                            assignee,
-                            assigneeInitials: member?.initials ?? null,
-                            updatedAt: new Date(),
-                          });
-                        }}
+                        onChange={(assignee) =>
+                          persistAssignee(issue, assignee)
+                        }
                       />
                     </Flex>
                   </Table.Cell>
@@ -695,8 +800,65 @@ export function IssuesTableView({
           onDelete={handleBulkDelete}
           members={teamMembers}
           canDelete={canDelete}
+          deleting={deleting}
         />
       )}
+
+      <Dialog.Root
+        open={deleteOpen}
+        onOpenChange={(e) => {
+          if (!e.open && deleting) return;
+          setDeleteOpen(e.open);
+        }}
+        placement="center"
+      >
+        <Dialog.Backdrop bg="blackAlpha.600" backdropFilter="blur(4px)" />
+        <Dialog.Positioner>
+          <Dialog.Content
+            bg="bg.surface"
+            borderRadius="card"
+            maxW="sm"
+            w="full"
+            mx="4"
+            boxShadow="elevated"
+            animation={`rivet-scale-in 0.28s ${EASE_OUT} both`}
+          >
+            <Dialog.Header pt="6" px="6" pb="0">
+              <Dialog.Title color="fg.primary">
+                Delete {selectedIds.size}{" "}
+                {selectedIds.size === 1 ? "issue" : "issues"}?
+              </Dialog.Title>
+            </Dialog.Header>
+            <Dialog.Body px="6" py="4">
+              <Text fontSize="sm" color="fg.secondary" lineHeight="1.6">
+                This cannot be undone.
+              </Text>
+            </Dialog.Body>
+            <Dialog.Footer px="6" pb="6" pt="0" gap="3">
+              <Button
+                variant="outline"
+                borderRadius="control"
+                disabled={deleting}
+                onClick={() => setDeleteOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                borderRadius="control"
+                bg="status.error"
+                color="white"
+                loading={deleting}
+                _hover={{ bg: "red.600" }}
+                onClick={() => {
+                  void confirmBulkDelete();
+                }}
+              >
+                Delete
+              </Button>
+            </Dialog.Footer>
+          </Dialog.Content>
+        </Dialog.Positioner>
+      </Dialog.Root>
     </>
   );
 }
