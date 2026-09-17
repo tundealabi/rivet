@@ -35,7 +35,7 @@ function OrgOnboardingGuard({ children }: { children: React.ReactNode }) {
   const orgsQuery = useUserOrganizations();
   const { pathname } = useLocation();
 
-  const orgsLoaded = !orgsQuery.isPending && !orgsQuery.isError;
+  const orgsLoaded = orgsQuery.isSuccess;
   const hasOrganizations = (orgsQuery.data?.organizations.length ?? 0) > 0;
 
   if (orgsLoaded && !hasOrganizations && !PUBLIC_PATHS.has(pathname)) {

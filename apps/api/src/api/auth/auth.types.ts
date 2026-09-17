@@ -8,7 +8,7 @@ export interface LoginAuthInput {
 }
 
 export interface LogoutAuthInput {
-  refreshToken: string;
+  refreshToken: string | undefined;
 }
 
 export interface RegisterAuthInput extends Pick<
@@ -22,7 +22,7 @@ export interface RegisterAuthInput extends Pick<
 
 export interface RefreshTokensAuthInput {
   ipAddress: string;
-  refreshToken: string;
+  refreshToken: string | undefined;
 }
 
 export interface EmailVerificationByEmailInput {

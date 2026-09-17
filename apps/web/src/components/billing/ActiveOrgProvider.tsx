@@ -41,7 +41,7 @@ export function ActiveOrgProvider({ children }: { children: ReactNode }) {
     [orgsQuery.data]
   );
 
-  const orgsStatus: UserOrganizationsStatus = orgsQuery.isPending
+  const orgsStatus: UserOrganizationsStatus = orgsQuery.isLoading
     ? "loading"
     : orgsQuery.isError
       ? "error"

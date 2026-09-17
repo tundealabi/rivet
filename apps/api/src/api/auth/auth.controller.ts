@@ -76,7 +76,7 @@ export class AuthController {
     summary: "Logout a user",
   })
   logout(
-    @Cookies(AUTH_REFRESH_TOKEN_COOKIE_NAME) refreshToken: string,
+    @Cookies(AUTH_REFRESH_TOKEN_COOKIE_NAME) refreshToken: string | undefined,
     @Res({ passthrough: true }) res: Response
   ) {
     const cookieOptions = this.service.getCookieOptions();
@@ -109,7 +109,7 @@ export class AuthController {
     summary: "Refresh authentication tokens",
   })
   async refreshTokens(
-    @Cookies(AUTH_REFRESH_TOKEN_COOKIE_NAME) refreshToken: string,
+    @Cookies(AUTH_REFRESH_TOKEN_COOKIE_NAME) refreshToken: string | undefined,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response
   ): Promise<RefreshAuthResponseDto> {

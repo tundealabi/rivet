@@ -203,7 +203,10 @@ export async function refreshAuthTokens(): Promise<AuthTokens> {
 
 /**
  * Fetch wrapper that attaches the access token and retries once after
- * refreshing when the server responds with 401.
+ * refreshing when a Bearer-authenticated request responds with 401.
+ *
+ * A 401 with no access token is anonymous (login page, etc.), not an
+ * expired session — do not call refresh or emit session-expired.
  */
 export async function authFetch(
   input: RequestInfo | URL,
@@ -219,6 +222,10 @@ export async function authFetch(
   let response = await fetch(input, { ...init, headers });
 
   if (response.status !== 401) {
+    return response;
+  }
+
+  if (!accessToken) {
     return response;
   }
 

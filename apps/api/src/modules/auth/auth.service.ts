@@ -86,7 +86,11 @@ export class AuthService {
     return rawToken;
   }
 
-  async findRefreshToken(token: string) {
+  async findRefreshToken(token: string | undefined) {
+    if (typeof token !== "string" || token.length === 0) {
+      return null;
+    }
+
     const tokenHash = this.hashService.digest(token);
     return await this.authRepository.findUniqueRefreshToken({
       where: { tokenHash },

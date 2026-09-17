@@ -10,6 +10,7 @@ import { Toaster } from "react-hot-toast";
 import { BrowserRouter } from "react-router-dom";
 
 import App from "./App.tsx";
+import { isSessionExpiredError } from "./auth-api";
 import { UnsavedChangesProvider } from "./components/app/unsaved-changes-registry";
 import { ActiveOrgProvider } from "./components/billing/ActiveOrgProvider";
 import { AppErrorBoundary } from "./components/errors/AppErrorBoundary";
@@ -20,8 +21,8 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false,
-
-      retry: 1,
+      retry: (failureCount, error) =>
+        isSessionExpiredError(error) ? false : failureCount < 1,
     },
   },
 });
